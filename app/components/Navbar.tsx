@@ -1,25 +1,51 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
-import { Home, LogOut, User, ChevronDown, Settings } from 'lucide-react';
+import { LogOut, User, ChevronDown, Settings, Calendar } from 'lucide-react';
 import Image from 'next/image';
 
 export default function Navbar() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { currentUser } = useUserStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Este efecto se ejecuta solo en el cliente después de la hidratación
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Cerrar el menú cuando se hace clic fuera de él
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Log para depuración
+  useEffect(() => {
+    if (isMounted) {
+      console.log('Estado de Navbar:', {
+        nextAuthStatus: status,
+        hasSession: !!session,
+        hasCurrentUser: !!currentUser,
+        userEmail: currentUser?.email || session?.user?.email || 'No disponible'
+      });
+    }
+  }, [isMounted, status, session, currentUser]);
 
   const handleSignOut = async () => {
-    // Cerrar sesión en NextAuth
     await signOut({ redirect: false });
-    
-    // Cerrar sesión en el store
     useUserStore.getState().logout();
-    
-    // Redirigir al login
     router.push('/login');
   };
 
@@ -28,11 +54,26 @@ export default function Navbar() {
     setShowUserMenu(false);
   };
 
-  const handleDashboardClick = () => {
-    router.push('/dashboard');
-  };
+  // Renderizamos un div vacío durante la hidratación para evitar discrepancias
+  if (!isMounted) {
+    return <div className="bg-white shadow-sm h-16"></div>;
+  }
 
-  if (!currentUser) return null;
+  // Solo mostramos el contenido real después de la hidratación
+  const shouldShowNavbar = isMounted && (currentUser || status === 'authenticated');
+  
+  // Determinar qué información de usuario mostrar
+  const userDisplayName = currentUser?.firstName || session?.user?.name?.split(' ')[0] || 'Usuario';
+  const userInitials = currentUser 
+    ? `${currentUser.firstName.charAt(0)}${currentUser.lastName.charAt(0)}`
+    : session?.user?.name
+      ? session.user.name.split(' ').map(n => n.charAt(0)).join('')
+      : 'U';
+  const userPhotoUrl = currentUser?.photoUrl || session?.user?.image || '';
+
+  if (!shouldShowNavbar) {
+    return <div className="bg-white shadow-sm h-16"></div>;
+  }
 
   return (
     <nav className="bg-white shadow-sm">
@@ -40,14 +81,15 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <button
-              onClick={handleDashboardClick}
+              onClick={() => router.push('/dashboard')}
               className="flex items-center text-gray-700 hover:text-gray-900"
             >
               <div className="h-10 w-10 relative mr-3">
                 <Image 
-                  src="/images/logo.png" 
+                  src="/images/escudo.png" 
                   alt="Logo" 
-                  fill 
+                  width={40}
+                  height={40}
                   style={{ objectFit: 'contain' }}
                 />
               </div>
@@ -56,30 +98,42 @@ export default function Navbar() {
               </span>
             </button>
           </div>
-          
+
           <div className="flex items-center">
-            <div className="relative">
+            <button
+              onClick={() => router.push('/calendar')}
+              className="flex items-center text-gray-700 hover:text-gray-900 mr-6 focus:outline-none"
+            >
+              <Calendar size={20} className="mr-1" />
+              <span className="hidden md:inline">Calendario</span>
+            </button>
+            
+            <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center text-gray-700 hover:text-gray-900 focus:outline-none"
+                aria-expanded={showUserMenu}
+                aria-haspopup="true"
               >
-                {currentUser.photoUrl ? (
+                {userPhotoUrl ? (
                   <img
-                    src={currentUser.photoUrl}
-                    alt={`${currentUser.firstName} ${currentUser.lastName}`}
-                    className="h-8 w-8 rounded-full mr-2"
+                    src={userPhotoUrl}
+                    alt={`Foto de perfil`}
+                    className="h-8 w-8 rounded-full mr-2 object-cover"
                   />
                 ) : (
                   <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-2">
                     <span className="text-gray-600 font-medium">
-                      {currentUser.firstName.charAt(0)}{currentUser.lastName.charAt(0)}
+                      {userInitials}
                     </span>
                   </div>
                 )}
-                <span className="mr-1">{currentUser.firstName}</span>
+                <span className="hidden md:inline mr-1">
+                  {userDisplayName}
+                </span>
                 <ChevronDown size={16} />
               </button>
-              
+
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border">
                   <button
@@ -89,8 +143,8 @@ export default function Navbar() {
                     <User size={16} className="mr-2" />
                     Mi perfil
                   </button>
-                  
-                  {currentUser.role === 'Administrador' && (
+
+                  {(currentUser?.role === 'Administrador' || session?.user?.role === 'Administrador') && (
                     <button
                       onClick={() => {
                         router.push('/admin');
@@ -102,9 +156,9 @@ export default function Navbar() {
                       Administración
                     </button>
                   )}
-                  
+
                   <hr className="my-1" />
-                  
+
                   <button
                     onClick={handleSignOut}
                     className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"

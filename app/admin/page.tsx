@@ -69,7 +69,7 @@ export default function AdminPage() {
     );
   }
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.password) {
       alert('Por favor completa todos los campos obligatorios');
       return;
@@ -81,17 +81,24 @@ export default function AdminPage() {
       return;
     }
 
-    addUser(newUser);
-    setShowUserModal(false);
-    setNewUser({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      role: 'Usuario',
-      expertise: 'Tecnico',
-      photoUrl: ''
-    });
+    try {
+      const createdUser = await addUser(newUser);
+      console.log('Usuario creado exitosamente:', createdUser);
+      alert(`Usuario ${createdUser.firstName} ${createdUser.lastName} creado exitosamente`);
+      setShowUserModal(false);
+      setNewUser({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        role: 'Usuario',
+        expertise: 'Tecnico',
+        photoUrl: ''
+      });
+    } catch (error) {
+      console.error('Error al crear usuario:', error);
+      alert('Error al crear usuario. Por favor, inténtalo de nuevo.');
+    }
   };
 
   const handleUpdateUser = () => {

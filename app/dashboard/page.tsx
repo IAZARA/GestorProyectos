@@ -1,54 +1,34 @@
 'use client';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useProjectStore } from '../../store/projectStore';
 import { useUserStore } from '../../store/userStore';
 import { Project } from '../../types/project';
-import { Calendar, Users, Clock, ArrowUpRight, BarChart3, FileText, Briefcase, Plus, Lock, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Clock, ArrowUpRight, BarChart3, FileText, Briefcase, Plus, Lock, AlertCircle } from 'lucide-react';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const { projects } = useProjectStore();
   const { users, currentUser, getUserById } = useUserStore();
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [pendingTasks, setPendingTasks] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [greeting, setGreeting] = useState<string>('');
 
-  // Redirigir si no está autenticado
+  // Determinar el saludo según la hora del día
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      setGreeting('Buenos días');
+    } else if (hour >= 12 && hour < 20) {
+      setGreeting('Buenas tardes');
+    } else {
+      setGreeting('Buenas noches');
     }
-  }, [status, router]);
-
-  // Inicializar el usuario actual desde la sesión si no existe
-  useEffect(() => {
-    const initializeUser = async () => {
-      if (status === 'authenticated' && session?.user && !currentUser) {
-        // Buscar el usuario por email
-        const userFound = users.find(u => u.email === session.user.email);
-        if (userFound) {
-          console.log("Usuario encontrado en el store:", userFound.firstName);
-          // Iniciar sesión manualmente en el store
-          useUserStore.getState().login(userFound.email, "admin123"); // Usamos la contraseña de prueba
-        }
-      }
-      
-      if (status !== 'loading') {
-        // Dar tiempo para que se cargue todo
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 500);
-      }
-    };
-    
-    initializeUser();
-  }, [status, session, currentUser, users]);
+  }, []);
 
   // Cargar proyectos
   useEffect(() => {
@@ -73,35 +53,6 @@ export default function DashboardPage() {
     }
   }, [currentUser, projects]);
 
-  // Mostrar pantalla de carga
-  if (isLoading || status === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg mb-2">Cargando...</p>
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-    );
-  }
-
-  // Si no hay usuario después de cargar, mostrar mensaje de error
-  if (!currentUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg mb-4 text-red-600">Error al cargar el usuario</p>
-          <button 
-            onClick={() => router.push('/login')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Volver al inicio de sesión
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -122,7 +73,7 @@ export default function DashboardPage() {
     // Verificar si el usuario tiene acceso al proyecto
     const hasAccess = userProjects.some(p => p.id === projectId);
     
-    if (hasAccess || currentUser.role === 'Administrador') {
+    if (hasAccess || currentUser?.role === 'Administrador') {
       router.push(`/projects/${projectId}`);
     } else {
       setSelectedProjectId(projectId);
@@ -134,12 +85,22 @@ export default function DashboardPage() {
     return userProjects.some(p => p.id === projectId);
   };
 
-  return (
+  // Contenido del dashboard
+  const DashboardContent = () => (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Bienvenido, {currentUser.firstName} {currentUser.lastName}</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">{greeting}</h1>
+            <p className="text-gray-500 mt-1">{currentUser?.firstName} {currentUser?.lastName}</p>
+          </div>
+          <button
+            onClick={() => router.push('/calendar')}
+            className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            <CalendarIcon size={18} className="mr-2" />
+            Calendario
+          </button>
         </div>
         
         {/* Tarjetas de resumen */}
@@ -175,7 +136,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Rol en el sistema</p>
-                <p className="text-2xl font-semibold">{currentUser.role}</p>
+                <p className="text-2xl font-semibold">{currentUser?.role}</p>
               </div>
             </div>
           </div>
@@ -219,7 +180,7 @@ export default function DashboardPage() {
                   
                   <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                     <div className="flex items-center">
-                      <Calendar size={14} className="mr-1" />
+                      <CalendarIcon size={14} className="mr-1" />
                       <span>Creado: {formatDate(project.createdAt)}</span>
                     </div>
                     
@@ -239,7 +200,7 @@ export default function DashboardPage() {
           ) : (
             <div className="p-8 text-center text-gray-500">
               <p>No tienes proyectos asignados</p>
-              {(currentUser.role === 'Administrador' || currentUser.role === 'Gestor') && (
+              {(currentUser?.role === 'Administrador' || currentUser?.role === 'Gestor') && (
                 <button
                   onClick={() => router.push('/projects?create=true')}
                   className="mt-2 text-blue-600 hover:text-blue-800 font-medium"
@@ -251,139 +212,129 @@ export default function DashboardPage() {
           )}
         </div>
         
-        {/* Todos los proyectos */}
-        <div className="bg-white rounded-lg shadow mb-8">
+        {/* Todos los proyectos (visible para todos los usuarios) */}
+        <div className="bg-white rounded-lg shadow">
           <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">Todos los proyectos</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Todos los proyectos</h2>
+              {(currentUser?.role === 'Administrador' || currentUser?.role === 'Gestor') && (
+                <button 
+                  onClick={() => router.push('/projects/new')}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center hover:bg-blue-700"
+                >
+                  <Plus size={16} className="mr-1" />
+                  Nuevo proyecto
+                </button>
+              )}
+            </div>
           </div>
           
           {allProjects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-              {allProjects.map(project => (
-                <div 
-                  key={project.id} 
-                  className="border rounded-lg overflow-hidden hover:shadow-md transition cursor-pointer"
-                  onClick={() => handleProjectClick(project.id)}
-                >
-                  <div className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-medium">{project.name}</h3>
-                      {!isUserMemberOfProject(project.id) && currentUser.role !== 'Administrador' && (
-                        <Lock size={16} className="text-gray-400" />
-                      )}
-                    </div>
-                    
-                    <p className="text-gray-600 text-sm mb-3 line-clamp-1">{project.description}</p>
-                    
-                    <div className="flex justify-between items-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        project.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                        project.status === 'En_Progreso' ? 'bg-blue-100 text-blue-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {project.status.replace('_', ' ')}
-                      </span>
-                      
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Users size={14} className="mr-1" />
-                        <span>{project.members.length} miembros</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center">
-                    <span className="text-xs text-gray-500">
-                      Creado: {formatDate(project.createdAt)}
-                    </span>
-                    
-                    {isUserMemberOfProject(project.id) || currentUser.role === 'Administrador' ? (
-                      <span className="text-blue-600 text-xs font-medium">Ver detalles</span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">Acceso restringido</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Proyecto
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Estado
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Progreso
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Miembros
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acceso
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {allProjects.map(project => (
+                    <tr 
+                      key={project.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleProjectClick(project.id)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{project.name}</div>
+                        <div className="text-sm text-gray-500">{formatDate(project.createdAt)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          project.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
+                          project.status === 'En_Progreso' ? 'bg-blue-100 text-blue-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {project.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full" 
+                            style={{ width: `${calculateProgress(project)}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">{calculateProgress(project)}%</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {project.members.length} miembros
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {isUserMemberOfProject(project.id) || currentUser?.role === 'Administrador' ? (
+                          <span className="text-green-600 flex items-center">
+                            <span className="h-2 w-2 bg-green-600 rounded-full mr-1"></span>
+                            Acceso
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 flex items-center">
+                            <Lock size={14} className="mr-1" />
+                            Restringido
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="p-8 text-center text-gray-500">
-              <p>No hay proyectos disponibles</p>
+              <p>No hay proyectos en el sistema</p>
             </div>
           )}
-        </div>
-        
-        {/* Acciones rápidas */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold">Acciones rápidas</h2>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button 
-                onClick={() => router.push('/projects')}
-                className="flex items-center justify-center p-4 border rounded-lg hover:bg-gray-50 transition"
-              >
-                <Briefcase size={20} className="mr-2 text-blue-600" />
-                <span>Ver todos los proyectos</span>
-              </button>
-              
-              {(currentUser.role === 'Administrador' || currentUser.role === 'Gestor') && (
-                <button 
-                  onClick={() => router.push('/projects?create=true')}
-                  className="flex items-center justify-center p-4 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  <Plus size={20} className="mr-2 text-green-600" />
-                  <span>Crear nuevo proyecto</span>
-                </button>
-              )}
-              
-              {currentUser.role === 'Administrador' && (
-                <button 
-                  onClick={() => router.push('/admin')}
-                  className="flex items-center justify-center p-4 border rounded-lg hover:bg-gray-50 transition"
-                >
-                  <Users size={20} className="mr-2 text-purple-600" />
-                  <span>Gestionar usuarios</span>
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
       
       {/* Modal de acceso denegado */}
       {showAccessDeniedModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center mb-4">
-                <div className="bg-red-100 p-2 rounded-full mr-3">
-                  <AlertCircle size={24} className="text-red-600" />
-                </div>
-                <h2 className="text-xl font-semibold">Acceso denegado</h2>
-              </div>
-              
-              <p className="mb-4">
-                No tienes acceso a este proyecto. Solo puedes ver los detalles de proyectos donde has sido asignado como miembro.
-              </p>
-              
-              <p className="text-sm text-gray-500 mb-4">
-                Contacta con un gestor o administrador si necesitas acceso a este proyecto.
-              </p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center text-red-600 mb-4">
+              <AlertCircle size={24} className="mr-2" />
+              <h3 className="text-lg font-medium">Acceso denegado</h3>
             </div>
-            
-            <div className="bg-gray-50 px-6 py-3 flex justify-end rounded-b-lg">
+            <p className="mb-4">No tienes acceso a este proyecto. Contacta con un administrador o gestor para solicitar acceso.</p>
+            <div className="flex justify-end">
               <button
                 onClick={() => setShowAccessDeniedModal(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
               >
-                Entendido
+                Cerrar
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   );
 } 

@@ -13,11 +13,6 @@ type ExtendedUser = {
   image?: string;
 };
 
-// Crear una función para obtener usuarios sin depender de hooks de React
-const getUsers = () => {
-  return useUserStore.getState().users;
-};
-
 const handler = NextAuth({
   providers: [
     CredentialsProvider({
@@ -28,20 +23,50 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.error('Faltan credenciales:', { email: !!credentials?.email, password: !!credentials?.password });
           return null;
         }
 
         try {
-          // Obtener usuarios del store
-          const users = getUsers();
+          // Intentar obtener el usuario directamente del store
+          const storeUser = await useUserStore.getState().login(credentials.email, credentials.password);
+          
+          if (storeUser) {
+            console.log(`Autenticación exitosa con store para: ${storeUser.email}`);
+            
+            return {
+              id: storeUser.id,
+              name: `${storeUser.firstName} ${storeUser.lastName}`,
+              email: storeUser.email,
+              role: storeUser.role,
+              image: storeUser.photoUrl
+            } as ExtendedUser;
+          }
+          
+          // Si no se pudo autenticar con el store, intentamos el método tradicional
+          const users = useUserStore.getState().getUsers();
+          console.log(`Buscando usuario con email: ${credentials.email}`);
+          console.log(`Total de usuarios en el store: ${users.length}`);
+          
           const user = users.find(user => user.email === credentials.email);
           
-          if (!user || !bcrypt.compareSync(credentials.password, user.password)) {
-            console.log("Credenciales incorrectas");
+          if (!user) {
+            console.error(`Usuario no encontrado: ${credentials.email}`);
+            return null;
+          }
+
+          console.log(`Usuario encontrado: ${user.firstName} ${user.lastName}`);
+          console.log(`Verificando contraseña para: ${user.email}`);
+          
+          // Verificar la contraseña usando bcrypt
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+          
+          if (!isValidPassword) {
+            console.error(`Contraseña incorrecta para usuario: ${user.email}`);
             return null;
           }
           
-          console.log("Usuario autenticado:", user.firstName, user.lastName);
+          console.log(`Autenticación exitosa para: ${user.email}`);
           
           return {
             id: user.id,

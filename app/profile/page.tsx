@@ -3,9 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
-import { User, Expertise } from '../../types/user';
-import { Save, ArrowLeft, Camera, X, Upload } from 'lucide-react';
+import { User, Expertise, Role } from '../../types/user';
+import { Save, ArrowLeft, Camera, X, Upload, Mail, Briefcase, Shield } from 'lucide-react';
 import Image from 'next/image';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -18,24 +19,14 @@ export default function ProfilePage() {
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [profileData, setProfileData] = useState<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    currentPassword: string;
-    newPassword: string;
-    confirmPassword: string;
-    expertise: Expertise;
-    photoUrl: string;
-  }>({
+  const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-    expertise: 'Tecnico',
-    photoUrl: ''
+    expertise: '' as Expertise,
+    photoUrl: '',
+    password: '',
+    confirmPassword: ''
   });
 
   useEffect(() => {
@@ -44,15 +35,14 @@ export default function ProfilePage() {
     }
     
     if (currentUser) {
-      setProfileData({
+      setFormData({
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
         email: currentUser.email,
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
         expertise: currentUser.expertise,
-        photoUrl: currentUser.photoUrl || ''
+        photoUrl: currentUser.photoUrl || '',
+        password: '',
+        confirmPassword: ''
       });
       
       setTimeout(() => {
@@ -72,12 +62,9 @@ export default function ProfilePage() {
     );
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setProfileData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,7 +99,7 @@ export default function ProfilePage() {
       const data = await response.json();
       
       // Actualizar la URL de la foto en el estado
-      setProfileData(prev => ({
+      setFormData(prev => ({
         ...prev,
         photoUrl: data.url
       }));
@@ -136,32 +123,24 @@ export default function ProfilePage() {
     setIsSaving(true);
     
     try {
-      // Validar contraseñas si se está intentando cambiar
-      if (profileData.newPassword) {
-        if (profileData.newPassword !== profileData.confirmPassword) {
-          setErrorMessage('Las contraseñas nuevas no coinciden');
-          setIsSaving(false);
-          return;
-        }
-        
-        if (!profileData.currentPassword) {
-          setErrorMessage('Debes ingresar tu contraseña actual para cambiarla');
-          setIsSaving(false);
-          return;
-        }
-        
-        // Aquí deberíamos verificar la contraseña actual, pero como es un demo
-        // simplemente asumimos que es correcta
+      // Validar que las contraseñas coincidan si se está cambiando
+      if (formData.password && formData.password !== formData.confirmPassword) {
+        setErrorMessage('Las contraseñas no coinciden');
+        setIsSaving(false);
+        return;
       }
       
-      // Actualizar usuario en el store
-      const updatedUser = updateUser(currentUser.id, {
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        expertise: profileData.expertise,
-        photoUrl: profileData.photoUrl,
-        ...(profileData.newPassword ? { password: profileData.newPassword } : {})
-      });
+      // Preparar datos para actualizar
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        expertise: formData.expertise,
+        photoUrl: formData.photoUrl,
+        ...(formData.password ? { password: formData.password } : {})
+      };
+      
+      // Actualizar usuario
+      const updatedUser = await updateUser(currentUser.id, updateData);
       
       if (updatedUser) {
         // Actualizar la sesión de NextAuth
@@ -169,18 +148,17 @@ export default function ProfilePage() {
           ...session,
           user: {
             ...session?.user,
-            name: `${profileData.firstName} ${profileData.lastName}`,
-            image: profileData.photoUrl
+            name: `${formData.firstName} ${formData.lastName}`,
+            image: formData.photoUrl
           }
         });
         
         setSuccessMessage('Perfil actualizado correctamente');
         
         // Limpiar campos de contraseña
-        setProfileData(prev => ({
+        setFormData(prev => ({
           ...prev,
-          currentPassword: '',
-          newPassword: '',
+          password: '',
           confirmPassword: ''
         }));
       } else {
@@ -194,7 +172,7 @@ export default function ProfilePage() {
     }
   };
 
-  return (
+  const ProfileContent = () => (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
@@ -216,16 +194,16 @@ export default function ProfilePage() {
             {/* Foto de perfil */}
             <div className="mb-8 flex flex-col items-center">
               <div className="relative mb-4">
-                {profileData.photoUrl ? (
+                {formData.photoUrl ? (
                   <div className="relative">
                     <img 
-                      src={profileData.photoUrl} 
+                      src={formData.photoUrl} 
                       alt="Foto de perfil" 
                       className="w-32 h-32 rounded-full object-cover border-4 border-white shadow"
                     />
                     <button
                       type="button"
-                      onClick={() => setProfileData(prev => ({ ...prev, photoUrl: '' }))}
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
                       className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 shadow"
                     >
                       <X size={16} />
@@ -233,7 +211,7 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-3xl font-medium border-4 border-white shadow">
-                    {profileData.firstName.charAt(0)}{profileData.lastName.charAt(0)}
+                    {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
                   </div>
                 )}
                 
@@ -276,8 +254,8 @@ export default function ProfilePage() {
                   <input
                     type="text"
                     name="firstName"
-                    value={profileData.firstName}
-                    onChange={handleInputChange}
+                    value={formData.firstName}
+                    onChange={handleChange}
                     className="w-full p-2 border rounded"
                     required
                   />
@@ -290,8 +268,8 @@ export default function ProfilePage() {
                   <input
                     type="text"
                     name="lastName"
-                    value={profileData.lastName}
-                    onChange={handleInputChange}
+                    value={formData.lastName}
+                    onChange={handleChange}
                     className="w-full p-2 border rounded"
                     required
                   />
@@ -305,7 +283,7 @@ export default function ProfilePage() {
                 <input
                   type="email"
                   name="email"
-                  value={profileData.email}
+                  value={formData.email}
                   className="w-full p-2 border rounded bg-gray-100"
                   disabled
                 />
@@ -320,8 +298,8 @@ export default function ProfilePage() {
                 </label>
                 <select
                   name="expertise"
-                  value={profileData.expertise}
-                  onChange={handleInputChange}
+                  value={formData.expertise}
+                  onChange={handleChange}
                   className="w-full p-2 border rounded"
                 >
                   <option value="Administrativo">Administrativo</option>
@@ -337,51 +315,31 @@ export default function ProfilePage() {
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña actual
+                  Nueva contraseña
                 </label>
                 <input
                   type="password"
-                  name="currentPassword"
-                  value={profileData.currentPassword}
-                  onChange={handleInputChange}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
                   className="w-full p-2 border rounded"
-                  placeholder="Ingresa tu contraseña actual"
+                  placeholder="Nueva contraseña"
                 />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nueva contraseña
-                  </label>
-                  <input
-                    type="password"
-                    name="newPassword"
-                    value={profileData.newPassword}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border rounded"
-                    placeholder="Nueva contraseña"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirmar nueva contraseña
-                  </label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={profileData.confirmPassword}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border rounded"
-                    placeholder="Confirma tu nueva contraseña"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirmar nueva contraseña
+                </label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded"
+                  placeholder="Confirma tu nueva contraseña"
+                />
               </div>
-              
-              <p className="text-xs text-gray-500 mt-2">
-                Deja estos campos en blanco si no deseas cambiar tu contraseña
-              </p>
             </div>
             
             {/* Mensajes de éxito o error */}
@@ -429,5 +387,11 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+  
+  return (
+    <ProtectedRoute>
+      <ProfileContent />
+    </ProtectedRoute>
   );
 } 
