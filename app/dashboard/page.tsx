@@ -94,13 +94,22 @@ export default function DashboardPage() {
             <h1 className="text-2xl md:text-3xl font-bold">{greeting}</h1>
             <p className="text-gray-500 mt-1">{currentUser?.firstName} {currentUser?.lastName}</p>
           </div>
-          <button
-            onClick={() => router.push('/calendar')}
-            className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            <CalendarIcon size={18} className="mr-2" />
-            Calendario
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => router.push('/administracion')}
+              className="flex items-center bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            >
+              <Users size={18} className="mr-2" />
+              Administración
+            </button>
+            <button
+              onClick={() => router.push('/calendar')}
+              className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              <CalendarIcon size={18} className="mr-2" />
+              Calendario
+            </button>
+          </div>
         </div>
         
         {/* Tarjetas de resumen */}

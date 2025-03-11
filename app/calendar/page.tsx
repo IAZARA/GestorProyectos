@@ -20,7 +20,8 @@ import {
   Users, 
   Clock, 
   CalendarDays,
-  Briefcase
+  Briefcase,
+  Plane
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -254,52 +255,162 @@ export default function CalendarPage() {
         const isToday = day.toDateString() === new Date().toDateString();
         
         // Filtrar eventos para este día
+        // Incluir eventos que comienzan este día o que están en curso (para licencias)
         const dayEvents = monthEvents.filter(event => {
           const eventStart = new Date(event.startDate);
           const eventEnd = new Date(event.endDate);
           
-          // Verificar si el evento ocurre en este día
-          return (
-            day.getDate() === eventStart.getDate() && 
-            day.getMonth() === eventStart.getMonth() && 
-            day.getFullYear() === eventStart.getFullYear()
-          ) || (
-            day >= eventStart && day <= eventEnd
-          );
+          // Para eventos normales, mostrar solo en el día de inicio
+          if (event.type !== 'license') {
+            return eventStart.getDate() === day.getDate() &&
+                   eventStart.getMonth() === day.getMonth() &&
+                   eventStart.getFullYear() === day.getFullYear();
+          } 
+          
+          // Para licencias, mostrar en todos los días que abarca
+          return day >= eventStart && day <= eventEnd;
         });
         
-        days.push(
-          <div 
-            key={day.toISOString()} 
-            className={`min-h-[100px] p-1 border border-gray-200 ${
-              isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'
-            } ${isToday ? 'bg-blue-50' : ''}`}
-            onClick={() => handleDateClick(cloneDay)}
-          >
-            <div className="text-right">
-              <span className={`inline-block w-6 h-6 text-center ${
-                isToday ? 'bg-blue-600 text-white rounded-full' : ''
-              }`}>
-                {day.getDate()}
-              </span>
+        if (dayEvents.length > 0) {
+          const eventElements = dayEvents.map(event => {
+            // Determinar el icono según el tipo de evento
+            let icon;
+            switch (event.type) {
+              case 'project':
+                icon = <Briefcase size={12} className="mr-1" />;
+                break;
+              case 'meeting':
+                icon = <Users size={12} className="mr-1" />;
+                break;
+              case 'license':
+                icon = <Plane size={12} className="mr-1" />;
+                break;
+              default:
+                icon = <CalendarDays size={12} className="mr-1" />;
+            }
+            
+            // Determinar la clase de estilo según el tipo de evento
+            let eventClass = "px-2 py-1 rounded text-xs mb-1 truncate flex items-center";
+            if (event.type === 'project') {
+              eventClass += " bg-green-100 text-green-800";
+            } else if (event.type === 'meeting') {
+              eventClass += " bg-blue-100 text-blue-800";
+            } else if (event.type === 'license') {
+              // Estilo especial para licencias
+              const eventStart = new Date(event.startDate);
+              const eventEnd = new Date(event.endDate);
+              const isFirstDay = day.getDate() === eventStart.getDate() && 
+                                day.getMonth() === eventStart.getMonth() && 
+                                day.getFullYear() === eventStart.getFullYear();
+              const isLastDay = day.getDate() === eventEnd.getDate() && 
+                                day.getMonth() === eventEnd.getMonth() && 
+                                day.getFullYear() === eventEnd.getFullYear();
+              
+              // Estilo base para licencias - usar el color definido en el evento o el naranjo por defecto
+              const bgColor = event.color || '#f97316';
+              const bgColorLight = 'bg-orange-50';
+              const borderColor = 'border-orange-300';
+              const textColor = 'text-orange-800';
+              
+              eventClass = `px-2 py-1 text-xs mb-1 flex items-center border-t border-b ${borderColor} ${bgColorLight}`;
+              
+              // Añadir bordes laterales según la posición
+              if (isFirstDay && isLastDay) {
+                // Si es un evento de un solo día
+                eventClass += ` rounded border-l border-r ${borderColor}`;
+              } else if (isFirstDay) {
+                // Si es el primer día
+                eventClass += ` rounded-l-md border-l ${borderColor} pl-2`;
+              } else if (isLastDay) {
+                // Si es el último día
+                eventClass += ` rounded-r-md border-r ${borderColor} pr-2`;
+              } else {
+                // Si es un día intermedio
+                eventClass += " border-l-0 border-r-0";
+              }
+              
+              // Mostrar el título completo solo en el primer día
+              if (!isFirstDay) {
+                return (
+                  <div 
+                    key={`${event.id}-${day.toISOString()}`}
+                    className={eventClass}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEventClick(event);
+                    }}
+                    title={event.title}
+                  >
+                    <div className="w-full h-5 flex items-center justify-center">
+                      <Plane size={10} className="text-orange-500" />
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Para el primer día, mostrar el título e icono
+              eventClass += ` ${textColor}`;
+            } else {
+              eventClass += " bg-gray-100 text-gray-800";
+            }
+            
+            return (
+              <div 
+                key={event.id}
+                className={eventClass}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEventClick(event);
+                }}
+              >
+                {icon}
+                {event.title}
+              </div>
+            );
+          });
+          
+          days.push(
+            <div 
+              key={day.toISOString()} 
+              className={`min-h-[100px] p-1 border border-gray-200 ${
+                isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'
+              } ${isToday ? 'bg-blue-50' : ''}`}
+              onClick={() => handleDateClick(cloneDay)}
+            >
+              <div className="text-right">
+                <span className={`inline-block w-6 h-6 text-center ${
+                  isToday ? 'bg-blue-600 text-white rounded-full' : ''
+                }`}>
+                  {day.getDate()}
+                </span>
+              </div>
+              <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
+                {eventElements}
+              </div>
             </div>
-            <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
-              {dayEvents.map(event => (
-                <div 
-                  key={event.id}
-                  className="text-xs p-1 rounded truncate cursor-pointer"
-                  style={{ backgroundColor: event.color || '#4f46e5', color: 'white' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEventClick(event);
-                  }}
-                >
-                  {event.title}
-                </div>
-              ))}
+          );
+        } else {
+          days.push(
+            <div 
+              key={day.toISOString()} 
+              className={`min-h-[100px] p-1 border border-gray-200 ${
+                isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'
+              } ${isToday ? 'bg-blue-50' : ''}`}
+              onClick={() => handleDateClick(cloneDay)}
+            >
+              <div className="text-right">
+                <span className={`inline-block w-6 h-6 text-center ${
+                  isToday ? 'bg-blue-600 text-white rounded-full' : ''
+                }`}>
+                  {day.getDate()}
+                </span>
+              </div>
+              <div className="mt-1 space-y-1 max-h-[80px] overflow-y-auto">
+                {/* Renderizar eventos vacíos o mensajes de ausencia de eventos */}
+              </div>
             </div>
-          </div>
-        );
+          );
+        }
         
         day.setDate(day.getDate() + 1);
       }
@@ -448,6 +559,7 @@ export default function CalendarPage() {
                   >
                     <option value="meeting">Reunión</option>
                     <option value="project">Proyecto</option>
+                    <option value="license">Licencia</option>
                     <option value="other">Otro</option>
                   </select>
                 </div>
@@ -540,6 +652,36 @@ export default function CalendarPage() {
     
     const creator = getUserById(selectedEvent.createdBy);
     const project = selectedEvent.projectId ? getProjectById(selectedEvent.projectId) : null;
+    const attendeesList = selectedEvent.attendees.map(id => getUserById(id)).filter(Boolean);
+    
+    // Determinar el icono según el tipo de evento
+    let typeIcon;
+    let typeText;
+    switch (selectedEvent.type) {
+      case 'project':
+        typeIcon = <Briefcase size={16} className="mr-2" />;
+        typeText = "Proyecto";
+        break;
+      case 'meeting':
+        typeIcon = <Users size={16} className="mr-2" />;
+        typeText = "Reunión";
+        break;
+      case 'license':
+        typeIcon = <Plane size={16} className="mr-2" />;
+        typeText = "Licencia";
+        break;
+      default:
+        typeIcon = <CalendarDays size={16} className="mr-2" />;
+        typeText = "Otro";
+    }
+    
+    // Determinar si el usuario actual puede editar el evento
+    const canEdit = currentUser && (
+      currentUser.id === selectedEvent.createdBy || 
+      currentUser.role === 'Administrador' ||
+      (selectedEvent.type === 'license' && currentUser.role === 'Gestor') ||
+      (selectedEvent.type === 'license' && currentUser.especialidad === 'Administracion')
+    );
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -562,8 +704,7 @@ export default function CalendarPage() {
               ></div>
               <div>
                 <p className="text-sm text-gray-500">
-                  {selectedEvent.type === 'meeting' ? 'Reunión' : 
-                   selectedEvent.type === 'project' ? 'Proyecto' : 'Otro'}
+                  {typeText}
                 </p>
                 <h4 className="text-lg font-medium">{selectedEvent.title}</h4>
               </div>
@@ -610,14 +751,11 @@ export default function CalendarPage() {
                 <div>
                   <p className="font-medium">Asistentes:</p>
                   <ul className="list-disc list-inside pl-2">
-                    {selectedEvent.attendees.map(attendeeId => {
-                      const attendee = getUserById(attendeeId);
-                      return (
-                        <li key={attendeeId} className="text-sm">
-                          {attendee ? `${attendee.firstName} ${attendee.lastName}` : 'Usuario desconocido'}
-                        </li>
-                      );
-                    })}
+                    {attendeesList.map(attendee => (
+                      <li key={attendee.id} className="text-sm">
+                        {attendee ? `${attendee.firstName} ${attendee.lastName}` : 'Usuario desconocido'}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </div>
@@ -655,7 +793,7 @@ export default function CalendarPage() {
             )}
             
             <div className="flex justify-end mt-6 space-x-2">
-              {(currentUser?.id === selectedEvent.createdBy || currentUser?.role === 'Administrador') && (
+              {canEdit && (
                 <>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}

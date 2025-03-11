@@ -8,7 +8,8 @@ export interface User {
   lastName: string;
   expertise: Expertise;
   role: Role;
-  photoUrl: string;
+  photoUrl?: string;
   email: string;
   password: string; // En una aplicación real, nunca almacenaríamos contraseñas en texto plano
+  especialidad?: string; // Nueva propiedad para la especialidad del usuario
 } 

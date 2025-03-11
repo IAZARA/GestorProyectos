@@ -11,12 +11,13 @@ export interface CalendarEvent {
   updatedAt: Date;
   type: EventType;
   projectId?: string;
+  userId?: string; // ID del usuario asociado (para licencias)
   attendees: string[]; // IDs de usuarios
   attachments: EventAttachment[];
   color?: string;
 }
 
-export type EventType = 'project' | 'meeting' | 'other';
+export type EventType = 'project' | 'meeting' | 'license' | 'other';
 
 export interface EventAttachment {
   id: string;
