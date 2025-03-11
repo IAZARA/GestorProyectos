@@ -1,7 +1,7 @@
 import { User } from './user';
 
 export type ProjectStatus = 'Pendiente' | 'En_Progreso' | 'Completado';
-export type TaskStatus = 'Por Hacer' | 'En Progreso' | 'En Revision' | 'Completado';
+export type TaskStatus = 'Por Hacer' | 'En Progreso' | 'En Revisión' | 'Completado';
 
 export interface Task {
   id: string;

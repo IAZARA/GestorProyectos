@@ -35,8 +35,7 @@ async function runMiddleware(req: NextRequest, res: NextResponse, fn: any) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Obtener el cuerpo de la solicitud como un buffer
-    const buffer = await req.arrayBuffer();
+    // Obtener el formulario directamente
     const formData = await req.formData();
     
     // Obtener los datos del formulario
@@ -54,12 +53,12 @@ export async function POST(req: NextRequest) {
     
     // Convertir el archivo a un formato que pueda ser procesado por el servicio
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const fileBuffer = Buffer.from(bytes);
     
     const fileData = {
       originalname: file.name,
       mimetype: file.type,
-      buffer,
+      buffer: fileBuffer,
       size: file.size
     };
     

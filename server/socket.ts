@@ -80,13 +80,13 @@ export function initializeSocketServer(httpServer: HttpServer) {
     // Manejar la desconexión
     socket.on('disconnect', () => {
       // Eliminar el usuario del mapa cuando se desconecta
-      for (const [userId, socketId] of userSocketMap.entries()) {
+      // Convertir a array para evitar problemas de compatibilidad
+      Array.from(userSocketMap.entries()).forEach(([userId, socketId]) => {
         if (socketId === socket.id) {
           userSocketMap.delete(userId);
           console.log(`Usuario ${userId} desconectado`);
-          break;
         }
-      }
+      });
     });
   });
 
