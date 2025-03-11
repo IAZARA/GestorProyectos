@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(uuid())
+  firstName         String
+  lastName          String
+  email             String         @unique
+  password          String
+  expertise         Expertise
+  role              Role
+  photoUrl          String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  attachments       Attachment[]
+  comments          Comment[]
+  sentNotifications Notification[] @relation("NotificationFrom")
+  notifications     Notification[] @relation("NotificationTo")
+  createdProjects   Project[]      @relation("CreatedBy")
+  assignedTasks     Task[]         @relation("AssignedTo")
+  createdTasks      Task[]         @relation("TaskCreatedBy")
+  memberProjects    Project[]      @relation("Members")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String
+  status      ProjectStatus
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String
+  attachments Attachment[]
+  comments    Comment[]
+  createdBy   User          @relation("CreatedBy", fields: [createdById], references: [id])
+  tasks       Task[]
+  members     User[]        @relation("Members")
+}
+
+model Task {
+  id           String       @id @default(uuid())
+  title        String
+  description  String
+  status       TaskStatus
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  projectId    String
+  createdById  String
+  assignedToId String?
+  attachments  Attachment[]
+  assignedTo   User?        @relation("AssignedTo", fields: [assignedToId], references: [id])
+  createdBy    User         @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  userId    String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  fileName     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  createdAt    DateTime @default(now())
+  userId       String
+  projectId    String?
+  taskId       String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  toId      String
+  fromId    String
+  from      User     @relation("NotificationFrom", fields: [fromId], references: [id])
+  to        User     @relation("NotificationTo", fields: [toId], references: [id])
+}
+
+enum Expertise {
+  Administrativo
+  Tecnico
+  Legal
+}
+
+enum Role {
+  Administrador
+  Gestor
+  Usuario
+}
+
+enum ProjectStatus {
+  Pendiente
+  En_Progreso
+  Completado
+}
+
+enum TaskStatus {
+  Por_Hacer
+  En_Progreso
+  En_Revision
+  Completado
+}
