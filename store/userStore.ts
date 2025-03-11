@@ -25,13 +25,13 @@ interface UserState {
 const initialUsers: User[] = [
   {
     id: '1',
-    firstName: 'Admin',
-    lastName: 'Sistema',
+    firstName: 'Ivan',
+    lastName: 'Zarate',
     expertise: 'Administrativo',
     role: 'Administrador',
     photoUrl: '',
-    email: 'admin@sistema.com',
-    password: bcrypt.hashSync('admin123', 10)
+    email: 'ivan.zarate@minseg.gob.ar',
+    password: bcrypt.hashSync('Vortex733-', 10)
   },
   {
     id: '2',
