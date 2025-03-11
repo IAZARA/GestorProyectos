@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
-import { LogOut, User, ChevronDown, Settings, Calendar } from 'lucide-react';
+import { LogOut, User, ChevronDown, Settings } from 'lucide-react';
 import Image from 'next/image';
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
   const { currentUser } = useUserStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -54,9 +55,14 @@ export default function Navbar() {
     setShowUserMenu(false);
   };
 
+  // No mostrar la barra de navegación en la página de login
+  if (pathname === '/login') {
+    return null;
+  }
+
   // Renderizamos un div vacío durante la hidratación para evitar discrepancias
   if (!isMounted) {
-    return <div className="bg-white shadow-sm h-16"></div>;
+    return <div className="bg-[#2d2c55] shadow-sm h-16"></div>;
   }
 
   // Solo mostramos el contenido real después de la hidratación
@@ -72,17 +78,17 @@ export default function Navbar() {
   const userPhotoUrl = currentUser?.photoUrl || session?.user?.image || '';
 
   if (!shouldShowNavbar) {
-    return <div className="bg-white shadow-sm h-16"></div>;
+    return <div className="bg-[#2d2c55] shadow-sm h-16"></div>;
   }
 
   return (
-    <nav className="bg-white shadow-sm">
+    <nav className="bg-[#2d2c55] shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <button
               onClick={() => router.push('/dashboard')}
-              className="flex items-center text-gray-700 hover:text-gray-900"
+              className="flex items-center text-white hover:text-gray-200"
             >
               <div className="h-10 w-10 relative mr-3">
                 <Image 
@@ -100,18 +106,10 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center">
-            <button
-              onClick={() => router.push('/calendar')}
-              className="flex items-center text-gray-700 hover:text-gray-900 mr-6 focus:outline-none"
-            >
-              <Calendar size={20} className="mr-1" />
-              <span className="hidden md:inline">Calendario</span>
-            </button>
-            
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center text-gray-700 hover:text-gray-900 focus:outline-none"
+                className="flex items-center text-white hover:text-gray-200 focus:outline-none"
                 aria-expanded={showUserMenu}
                 aria-haspopup="true"
               >
@@ -119,11 +117,11 @@ export default function Navbar() {
                   <img
                     src={userPhotoUrl}
                     alt={`Foto de perfil`}
-                    className="h-8 w-8 rounded-full mr-2 object-cover"
+                    className="h-8 w-8 rounded-full mr-2 object-cover border-2 border-white"
                   />
                 ) : (
-                  <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center mr-2">
-                    <span className="text-gray-600 font-medium">
+                  <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center mr-2">
+                    <span className="text-[#2d2c55] font-medium">
                       {userInitials}
                     </span>
                   </div>

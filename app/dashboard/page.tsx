@@ -97,14 +97,14 @@ export default function DashboardPage() {
           <div className="flex space-x-3">
             <button
               onClick={() => router.push('/administracion')}
-              className="flex items-center bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              className="flex items-center bg-[#2d2c55] text-white px-4 py-2 rounded-md hover:bg-opacity-90"
             >
               <Users size={18} className="mr-2" />
               Administración
             </button>
             <button
               onClick={() => router.push('/calendar')}
-              className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="flex items-center bg-[#2d2c55] text-white px-4 py-2 rounded-md hover:bg-opacity-90"
             >
               <CalendarIcon size={18} className="mr-2" />
               Calendario
@@ -128,7 +128,7 @@ export default function DashboardPage() {
           
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100 text-yellow-600 mr-4">
+              <div className="p-3 rounded-full bg-orange-100 text-orange-600 mr-4">
                 <FileText size={24} />
               </div>
               <div>
@@ -140,7 +140,7 @@ export default function DashboardPage() {
           
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+              <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
                 <BarChart3 size={24} />
               </div>
               <div>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
               <h2 className="text-xl font-semibold">Mis proyectos</h2>
               <button 
                 onClick={() => router.push('/projects')}
-                className="text-blue-600 hover:text-blue-800 flex items-center text-sm font-medium"
+                className="text-[#2d2c55] hover:text-opacity-80 flex items-center text-sm font-medium"
               >
                 Ver todos
                 <ArrowUpRight size={14} className="ml-1" />
@@ -178,7 +178,7 @@ export default function DashboardPage() {
                     <h3 className="font-medium">{project.name}</h3>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       project.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                      project.status === 'En_Progreso' ? 'bg-blue-100 text-blue-800' :
+                      project.status === 'En_Progreso' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-green-100 text-green-800'
                     }`}>
                       {project.status.replace('_', ' ')}
@@ -212,7 +212,7 @@ export default function DashboardPage() {
               {(currentUser?.role === 'Administrador' || currentUser?.role === 'Gestor') && (
                 <button
                   onClick={() => router.push('/projects?create=true')}
-                  className="mt-2 text-blue-600 hover:text-blue-800 font-medium"
+                  className="mt-2 text-[#2d2c55] hover:text-opacity-80 font-medium"
                 >
                   Crear un nuevo proyecto
                 </button>
@@ -228,8 +228,8 @@ export default function DashboardPage() {
               <h2 className="text-xl font-semibold">Todos los proyectos</h2>
               {(currentUser?.role === 'Administrador' || currentUser?.role === 'Gestor') && (
                 <button 
-                  onClick={() => router.push('/projects/new')}
-                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center hover:bg-blue-700"
+                  onClick={() => router.push('/projects?create=true')}
+                  className="bg-[#2d2c55] text-white px-3 py-1 rounded text-sm flex items-center hover:bg-opacity-90"
                 >
                   <Plus size={16} className="mr-1" />
                   Nuevo proyecto
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           project.status === 'Pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                          project.status === 'En_Progreso' ? 'bg-blue-100 text-blue-800' :
+                          project.status === 'En_Progreso' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-green-100 text-green-800'
                         }`}>
                           {project.status.replace('_', ' ')}
@@ -330,7 +330,7 @@ export default function DashboardPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => setShowAccessDeniedModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
               >
                 Cerrar
               </button>

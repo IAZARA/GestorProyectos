@@ -25,7 +25,8 @@ export default function ProtectedRoute({
       console.log('Estado de autenticación:', {
         nextAuthStatus: status,
         hasCurrentUser: currentUser !== null,
-        isAuthenticated
+        isAuthenticated,
+        userRole: currentUser?.role || session?.user?.role
       });
       
       // Si no está autenticado y ya terminó de cargar, redirigir al login
@@ -42,8 +43,15 @@ export default function ProtectedRoute({
           const userRole = currentUser?.role || session?.user?.role;
           console.log('Verificando rol:', { requiredRole, userRole });
           
-          if (userRole !== requiredRole) {
-            console.log(`Rol requerido: ${requiredRole}, rol actual: ${userRole}`);
+          // Permitir acceso si el rol coincide exactamente o si el usuario es administrador
+          // También permitir acceso a gestores si el rol requerido es "Gestor"
+          const hasRequiredRole = 
+            userRole === requiredRole || 
+            userRole === 'Administrador' || 
+            (requiredRole === 'Gestor' && userRole === 'Gestor');
+          
+          if (!hasRequiredRole) {
+            console.log(`Rol requerido: ${requiredRole}, rol actual: ${userRole}, acceso denegado`);
             router.push('/dashboard');
             return;
           }

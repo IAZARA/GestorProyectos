@@ -15,6 +15,7 @@ export default function LicenciaModal({ isOpen, onClose, editingItem }: Licencia
   const { users } = useUserStore();
   const { addLicencia, updateLicencia } = useAdminStore();
   
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Licencia>>({
     userId: '',
     area: '',
@@ -148,19 +149,31 @@ export default function LicenciaModal({ isOpen, onClose, editingItem }: Licencia
       return;
     }
     
-    const licenciaData = {
-      ...formData,
-      diasTotales: formData.diasTotales || 0,
-      fracciones: formData.fracciones || []
-    } as Licencia;
-    
-    if (editingItem) {
-      updateLicencia(editingItem.id, licenciaData);
-    } else {
-      addLicencia(licenciaData);
+    if (!formData.fracciones || formData.fracciones.length === 0) {
+      alert('Debe agregar al menos una fracción de licencia');
+      return;
     }
     
-    onClose();
+    setIsSubmitting(true);
+    
+    try {
+      const licenciaData = {
+        ...formData,
+        id: editingItem?.id || Date.now().toString(),
+      } as Licencia;
+      
+      if (editingItem) {
+        updateLicencia(licenciaData.id, licenciaData);
+      } else {
+        addLicencia(licenciaData);
+      }
+      
+      onClose();
+    } catch (error) {
+      console.error('Error al guardar la licencia:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   if (!isOpen) return null;
@@ -344,9 +357,10 @@ export default function LicenciaModal({ isOpen, onClose, editingItem }: Licencia
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              disabled={isSubmitting}
+              className="bg-[#2d2c55] text-white px-4 py-2 rounded hover:bg-opacity-90 disabled:bg-opacity-70 disabled:cursor-not-allowed"
             >
-              {editingItem ? 'Guardar cambios' : 'Agregar licencia'}
+              {isSubmitting ? 'Guardando...' : (editingItem ? 'Guardar cambios' : 'Agregar licencia')}
             </button>
           </div>
         </form>

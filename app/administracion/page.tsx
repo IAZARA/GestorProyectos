@@ -202,7 +202,7 @@ export default function AdministracionPage() {
                 setEditingItem(null);
                 setShowPersonalModal(true);
               }}
-              className="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center hover:bg-blue-700"
+              className="bg-[#2d2c55] text-white px-3 py-1 rounded text-sm flex items-center hover:bg-opacity-90"
             >
               <Plus size={16} className="mr-1" />
               Agregar información
@@ -338,7 +338,7 @@ export default function AdministracionPage() {
                 setEditingItem(null);
                 setShowLicenciaModal(true);
               }}
-              className="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center hover:bg-blue-700"
+              className="bg-[#2d2c55] text-white px-3 py-1 rounded text-sm flex items-center hover:bg-opacity-90"
             >
               <Plus size={16} className="mr-1" />
               Agregar licencia
@@ -526,7 +526,7 @@ export default function AdministracionPage() {
               setEditingItem(null);
               setShowDocumentoModal(true);
             }}
-            className="bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center hover:bg-blue-700"
+            className="bg-[#2d2c55] text-white px-3 py-1 rounded text-sm flex items-center hover:bg-opacity-90"
           >
             <Upload size={16} className="mr-1" />
             Subir documento
@@ -599,7 +599,7 @@ export default function AdministracionPage() {
             </div>
             <button
               onClick={() => router.push('/dashboard')}
-              className="text-blue-600 hover:text-blue-800 flex items-center"
+              className="text-[#2d2c55] hover:text-opacity-80 flex items-center"
             >
               <ChevronLeft size={16} className="mr-1" />
               Volver al dashboard
@@ -629,7 +629,7 @@ export default function AdministracionPage() {
                 onClick={() => setActiveTab('personal')}
                 className={`py-4 px-6 text-sm font-medium ${
                   activeTab === 'personal'
-                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    ? 'border-b-2 border-[#2d2c55] text-[#2d2c55]'
                     : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -640,7 +640,7 @@ export default function AdministracionPage() {
                 onClick={() => setActiveTab('licencias')}
                 className={`py-4 px-6 text-sm font-medium ${
                   activeTab === 'licencias'
-                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    ? 'border-b-2 border-[#2d2c55] text-[#2d2c55]'
                     : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -651,7 +651,7 @@ export default function AdministracionPage() {
                 onClick={() => setActiveTab('documentos')}
                 className={`py-4 px-6 text-sm font-medium ${
                   activeTab === 'documentos'
-                    ? 'border-b-2 border-blue-500 text-blue-600'
+                    ? 'border-b-2 border-[#2d2c55] text-[#2d2c55]'
                     : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >

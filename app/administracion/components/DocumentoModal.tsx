@@ -177,8 +177,8 @@ export default function DocumentoModal({ isOpen, onClose }: DocumentoModalProps)
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md"
               disabled={isUploading || !selectedFile}
+              className="bg-[#2d2c55] text-white px-4 py-2 rounded hover:bg-opacity-90 disabled:bg-opacity-70 disabled:cursor-not-allowed"
             >
               {isUploading ? 'Subiendo...' : 'Subir documento'}
             </button>

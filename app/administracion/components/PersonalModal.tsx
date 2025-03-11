@@ -15,6 +15,7 @@ export default function PersonalModal({ isOpen, onClose, editingItem }: Personal
   const { users } = useUserStore();
   const { addPersonalInfo, updatePersonalInfo } = useAdminStore();
   
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<PersonalInfo>>({
     userId: '',
     fechaNacimiento: '',
@@ -89,18 +90,25 @@ export default function PersonalModal({ isOpen, onClose, editingItem }: Personal
       return;
     }
     
+    setIsSubmitting(true);
+    
     const personalData = {
       ...formData,
       userId: selectedUserId
     } as PersonalInfo;
     
-    if (editingItem) {
-      updatePersonalInfo(selectedUserId, personalData);
-    } else {
-      addPersonalInfo(personalData);
+    try {
+      if (editingItem) {
+        updatePersonalInfo(selectedUserId, personalData);
+      } else {
+        addPersonalInfo(personalData);
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error al guardar:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    onClose();
   };
   
   if (!isOpen) return null;
@@ -308,9 +316,10 @@ export default function PersonalModal({ isOpen, onClose, editingItem }: Personal
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              disabled={isSubmitting}
+              className="bg-[#2d2c55] text-white px-4 py-2 rounded hover:bg-opacity-90 disabled:bg-opacity-70 disabled:cursor-not-allowed"
             >
-              {editingItem ? 'Guardar cambios' : 'Agregar información'}
+              {isSubmitting ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>

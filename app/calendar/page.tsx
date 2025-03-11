@@ -445,14 +445,14 @@ export default function CalendarPage() {
             </h2>
             <button 
               onClick={goToToday}
-              className="ml-4 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="ml-4 px-3 py-1 text-sm bg-[#2d2c55] text-white rounded hover:bg-opacity-90"
             >
               Hoy
             </button>
           </div>
           <button 
             onClick={() => handleDateClick(new Date())}
-            className="flex items-center bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            className="flex items-center bg-[#2d2c55] text-white px-3 py-1 rounded hover:bg-opacity-90"
           >
             <Plus size={16} className="mr-1" />
             Nuevo evento
@@ -635,7 +635,7 @@ export default function CalendarPage() {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-4 py-2 bg-[#2d2c55] text-white rounded-md hover:bg-opacity-90"
               >
                 {isNewEvent ? 'Crear evento' : 'Guardar cambios'}
               </button>
@@ -804,7 +804,7 @@ export default function CalendarPage() {
                   </button>
                   <button
                     onClick={handleEditEvent}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-4 py-2 bg-[#2d2c55] text-white rounded-md hover:bg-opacity-90"
                   >
                     Editar
                   </button>
