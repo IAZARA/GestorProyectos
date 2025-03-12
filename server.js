@@ -1,9 +1,7 @@
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
-
-// Eliminar la referencia al servidor de WebSockets por ahora
-// const { initializeSocketServer } = require('./server/socket');
+const { initializeSocketServer } = require('./server/socket');
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -15,8 +13,8 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
-  // Comentar la inicialización del servidor de WebSockets
-  // initializeSocketServer(server);
+  // Inicializar el servidor de WebSockets
+  initializeSocketServer(server);
 
   server.listen(3001, (err) => {
     if (err) throw err;

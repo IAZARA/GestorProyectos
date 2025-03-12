@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CalendarEvent, EventAttachment, CalendarState } from '../types/calendar';
 import { v4 as uuidv4 } from 'uuid';
+import { sendNotification } from '../lib/socket';
+import { useUserStore } from './userStore';
 
 // Crear algunos eventos iniciales para demostración
 const initialEvents: CalendarEvent[] = [
@@ -84,6 +86,45 @@ export const useCalendarStore = create<CalendarState>()(
         set((state) => ({
           events: [...state.events, newEvent]
         }));
+        
+        // Enviar notificación a todos los usuarios cuando se añade un evento
+        const currentUser = useUserStore.getState().currentUser;
+        if (currentUser) {
+          // Obtener todos los usuarios
+          const allUsers = useUserStore.getState().users;
+          
+          // Si el evento está asociado a un proyecto, notificar solo a los miembros del proyecto
+          if (newEvent.projectId) {
+            // Importar el store de proyectos dinámicamente para evitar dependencias circulares
+            import('./projectStore').then(({ useProjectStore }) => {
+              const project = useProjectStore.getState().getProjectById(newEvent.projectId);
+              if (project) {
+                project.members.forEach(memberId => {
+                  if (memberId !== currentUser.id) {
+                    sendNotification(
+                      'event_added',
+                      `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
+                      currentUser.id,
+                      memberId
+                    );
+                  }
+                });
+              }
+            });
+          } else {
+            // Si es un evento general, notificar a todos los usuarios
+            allUsers.forEach(user => {
+              if (user.id !== currentUser.id) {
+                sendNotification(
+                  'event_added',
+                  `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
+                  currentUser.id,
+                  user.id
+                );
+              }
+            });
+          }
+        }
         
         return newEvent;
       },

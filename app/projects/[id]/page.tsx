@@ -7,8 +7,9 @@ import { useUserStore } from '../../../store/userStore';
 import KanbanBoard from '../../components/projects/KanbanBoard';
 import AttachmentsList from '../../components/projects/AttachmentsList';
 import CollaborativeWiki from '../../components/projects/CollaborativeWiki';
-import { Calendar, Users, FileText, Kanban, Book, ArrowLeft, UserPlus, X, Search, Check, UserMinus } from 'lucide-react';
+import { Calendar, Users, FileText, Kanban, Book, ArrowLeft, UserPlus, X, Search, Check, UserMinus, Trash2 } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import DeleteProjectModal from '../../components/projects/DeleteProjectModal';
 
 type TabType = 'overview' | 'kanban' | 'wiki' | 'files';
 
@@ -18,6 +19,7 @@ export default function ProjectDetailPage() {
   const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showMemberModal, setShowMemberModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   
@@ -31,6 +33,11 @@ export default function ProjectDetailPage() {
   const canManageMembers = 
     currentUser?.role === 'Administrador' || 
     currentUser?.role === 'Gestor' || 
+    (project && project.createdBy === currentUser?.id);
+  
+  // Verificar si el usuario actual puede eliminar el proyecto
+  const canDeleteProject = 
+    currentUser?.role === 'Administrador' || 
     (project && project.createdBy === currentUser?.id);
   
   useEffect(() => {
@@ -277,10 +284,20 @@ export default function ProjectDetailPage() {
               <h1 className="text-2xl md:text-3xl font-bold">{project.name}</h1>
               <p className="text-gray-500 mt-1">Creado el {formatDate(project.createdAt)}</p>
             </div>
-            <div className="mt-4 md:mt-0">
+            <div className="mt-4 md:mt-0 flex items-center">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(project.status)}`}>
                 {project.status.replace('_', ' ')}
               </span>
+              
+              {canDeleteProject && (
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="ml-4 flex items-center text-red-600 hover:text-red-800 px-3 py-1 rounded-md border border-red-200 hover:bg-red-50"
+                >
+                  <Trash2 size={16} className="mr-1" />
+                  <span>Eliminar</span>
+                </button>
+              )}
             </div>
           </div>
           
@@ -340,7 +357,7 @@ export default function ProjectDetailPage() {
         
         {/* Modal para gestionar miembros */}
         {showMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium">Gestionar miembros del proyecto</h3>
@@ -459,6 +476,14 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
+        
+        {/* Modal para eliminar proyecto */}
+        <DeleteProjectModal
+          projectId={project.id}
+          projectName={project.name}
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+        />
       </div>
     </ProtectedRoute>
   );

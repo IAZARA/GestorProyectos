@@ -5,6 +5,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
 import { LogOut, User, ChevronDown, Settings } from 'lucide-react';
 import Image from 'next/image';
+import NotificationCenter from './NotificationCenter';
 
 export default function Navbar() {
   const router = useRouter();
@@ -106,6 +107,10 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center">
+            <div className="mr-4">
+              <NotificationCenter />
+            </div>
+            
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}

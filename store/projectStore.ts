@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Project, Task, Comment, ProjectStatus, Attachment, ProjectPriority } from '../types/project';
 import { v4 as uuidv4 } from 'uuid';
+import { sendNotification } from '../lib/socket';
+import { useUserStore } from './userStore';
 
 interface ProjectState {
   projects: Project[];
@@ -112,8 +114,9 @@ export const useProjectStore = create<ProjectState>()(
         
         if (projectIndex === -1) return null;
         
+        const originalProject = projects[projectIndex];
         const updatedProject = {
-          ...projects[projectIndex],
+          ...originalProject,
           ...projectData,
           updatedAt: new Date()
         };
@@ -123,9 +126,60 @@ export const useProjectStore = create<ProjectState>()(
         
         set({ 
           projects: updatedProjects,
-          // Si el proyecto actualizado es el proyecto actual, actualizamos también currentProject
           currentProject: get().currentProject?.id === id ? updatedProject : get().currentProject
         });
+        
+        // Obtener el usuario actual
+        const currentUser = useUserStore.getState().currentUser;
+        if (currentUser) {
+          // Verificar si se ha editado la wiki
+          if (projectData.wikiContent && projectData.wikiContent !== originalProject.wikiContent) {
+            // Notificar a todos los miembros del proyecto excepto al editor
+            updatedProject.members.forEach(memberId => {
+              if (memberId !== currentUser.id) {
+                sendNotification(
+                  'wiki_edited',
+                  `${currentUser.firstName} ${currentUser.lastName} ha editado la wiki del proyecto "${updatedProject.name}"`,
+                  currentUser.id,
+                  memberId
+                );
+              }
+            });
+          }
+          
+          // Verificar si se han añadido nuevos miembros al proyecto
+          if (projectData.members && Array.isArray(projectData.members)) {
+            const newMembers = projectData.members.filter(
+              memberId => !originalProject.members.includes(memberId)
+            );
+            
+            // Si el usuario actual es gestor o administrador, notificar a los nuevos miembros
+            if ((currentUser.role === 'Gestor' || currentUser.role === 'Administrador') && newMembers.length > 0) {
+              newMembers.forEach(newMemberId => {
+                sendNotification(
+                  'project_added',
+                  `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${updatedProject.name}"`,
+                  currentUser.id,
+                  newMemberId
+                );
+              });
+            }
+          }
+          
+          // Notificación general de actualización del proyecto (para cambios que no sean wiki o miembros)
+          if (!projectData.wikiContent && !projectData.members) {
+            updatedProject.members.forEach(memberId => {
+              if (memberId !== currentUser.id) {
+                sendNotification(
+                  'project_updated',
+                  `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProject.name}"`,
+                  currentUser.id,
+                  memberId
+                );
+              }
+            });
+          }
+        }
         
         return updatedProject;
       },
@@ -178,6 +232,20 @@ export const useProjectStore = create<ProjectState>()(
           projects: updatedProjects,
           currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
         });
+        
+        // Enviar notificación si la tarea está asignada a alguien
+        if (newTask.assignedTo && newTask.createdBy) {
+          const currentUser = useUserStore.getState().currentUser;
+          if (currentUser) {
+            const project = projects[projectIndex];
+            sendNotification(
+              'task_assigned',
+              `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
+              currentUser.id,
+              newTask.assignedTo
+            );
+          }
+        }
         
         return newTask;
       },
@@ -264,6 +332,22 @@ export const useProjectStore = create<ProjectState>()(
           projects: updatedProjects,
           currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
         });
+        
+        // Enviar notificación a todos los miembros del proyecto excepto al autor del comentario
+        const currentUser = useUserStore.getState().currentUser;
+        if (currentUser) {
+          const project = projects[projectIndex];
+          project.members.forEach(memberId => {
+            if (memberId !== currentUser.id) {
+              sendNotification(
+                'comment_added',
+                `${currentUser.firstName} ${currentUser.lastName} ha comentado en el proyecto "${project.name}"`,
+                currentUser.id,
+                memberId
+              );
+            }
+          });
+        }
         
         return newComment;
       },

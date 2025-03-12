@@ -5,7 +5,7 @@ let socket: Socket | null = null;
 export const initializeSocket = (userId: string) => {
   if (!socket) {
     // Inicializar la conexión
-    socket = io(process.env.NEXTAUTH_URL || 'http://localhost:3000', {
+    socket = io(process.env.NEXTAUTH_URL || 'http://localhost:3001', {
       withCredentials: true,
     });
 

@@ -8,6 +8,8 @@ import {
   Documento 
 } from '../types/admin';
 import { useCalendarStore } from './calendarStore';
+import { sendNotification } from '../lib/socket';
+import { useUserStore } from './userStore';
 
 // Datos iniciales de ejemplo
 const initialPersonalInfo: PersonalInfo[] = [
@@ -177,6 +179,25 @@ export const useAdminStore = create<AdminState>()(
         set((state) => ({
           documentos: [...state.documentos, newDocumento]
         }));
+        
+        // Enviar notificación a todos los usuarios cuando se sube un documento
+        const currentUser = useUserStore.getState().currentUser;
+        if (currentUser) {
+          // Obtener todos los usuarios
+          const allUsers = useUserStore.getState().users;
+          
+          // Notificar a todos los usuarios
+          allUsers.forEach(user => {
+            if (user.id !== currentUser.id) {
+              sendNotification(
+                'document_uploaded',
+                `${currentUser.firstName} ${currentUser.lastName} ha subido un nuevo documento: "${newDocumento.titulo}"`,
+                currentUser.id,
+                user.id
+              );
+            }
+          });
+        }
         
         return newDocumento;
       },

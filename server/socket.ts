@@ -56,7 +56,8 @@ export function initializeSocketServer(httpServer: HttpServer) {
           type: notification.type,
           content: notification.content,
           fromId: notification.fromId,
-          createdAt: notification.createdAt
+          createdAt: notification.createdAt,
+          isRead: notification.isRead
         });
 
         console.log(`Notificación enviada a usuario ${payload.toUserId}`);

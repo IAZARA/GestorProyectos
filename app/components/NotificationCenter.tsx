@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useUserStore } from '../../store/userStore';
 import { initializeSocket, getSocket, markNotificationAsRead } from '../../lib/socket';
-import { Bell } from 'lucide-react';
+import { Bell, Calendar, MessageSquare, FileText, Users, BookOpen } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -93,13 +93,21 @@ export default function NotificationCenter() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'task_assigned':
-        return '📋';
+        return <FileText size={18} className="text-blue-500" />;
       case 'comment_added':
-        return '💬';
+        return <MessageSquare size={18} className="text-green-500" />;
       case 'project_updated':
-        return '📊';
+        return <Users size={18} className="text-purple-500" />;
+      case 'wiki_edited':
+        return <BookOpen size={18} className="text-amber-500" />;
+      case 'project_added':
+        return <Users size={18} className="text-indigo-500" />;
+      case 'event_added':
+        return <Calendar size={18} className="text-red-500" />;
+      case 'document_uploaded':
+        return <FileText size={18} className="text-orange-500" />;
       default:
-        return '🔔';
+        return <Bell size={18} className="text-gray-500" />;
     }
   };
 
