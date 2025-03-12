@@ -39,7 +39,7 @@ export default function PersonalModal({ isOpen, onClose, editingItem }: Personal
         ...editingItem,
         fechaNacimiento: editingItem.fechaNacimiento ? new Date(editingItem.fechaNacimiento).toISOString().split('T')[0] : ''
       });
-      setSelectedUserId(editingItem.userId);
+      setSelectedUserId(editingItem.userId || '');
     } else {
       setFormData({
         userId: '',

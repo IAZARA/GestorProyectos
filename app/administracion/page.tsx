@@ -318,7 +318,7 @@ export default function AdministracionPage() {
                           onClick={() => {
                             setEditingItem({
                               userId: user.id,
-                              ...info
+                              ...(info || {})
                             });
                             setShowPersonalModal(true);
                           }}

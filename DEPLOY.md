@@ -108,7 +108,7 @@ Añade el siguiente contenido (ajustando los valores según tu configuración):
 ```
 DATABASE_URL="postgresql://gestor_app:TU_CONTRASEÑA@localhost:5432/gestor_proyectos?schema=public"
 NEXTAUTH_SECRET="un_secreto_muy_seguro_para_produccion"
-NEXTAUTH_URL="http://TU_IP_DEL_DROPLET:3000"
+NEXTAUTH_URL="  http://TU_IP_DEL_DROPLET:3000"
 UPLOAD_DIR="./uploads"
 ```
 

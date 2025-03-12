@@ -29,11 +29,11 @@ export default function LicenciaModal({ isOpen, onClose, editingItem }: Licencia
       setFormData({
         ...editingItem,
         fechaAlta: editingItem.fechaAlta ? new Date(editingItem.fechaAlta).toISOString().split('T')[0] : '',
-        fracciones: editingItem.fracciones.map((f: FraccionLicencia) => ({
+        fracciones: editingItem.fracciones ? editingItem.fracciones.map((f: FraccionLicencia) => ({
           ...f,
           desde: f.desde ? new Date(f.desde).toISOString().split('T')[0] : '',
           hasta: f.hasta ? new Date(f.hasta).toISOString().split('T')[0] : ''
-        }))
+        })) : []
       });
     } else {
       setFormData({
