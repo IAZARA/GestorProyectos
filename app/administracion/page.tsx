@@ -93,7 +93,12 @@ export default function AdministracionPage() {
   const filteredDocumentos = documentos.filter(doc => {
     return doc.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
            doc.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
-  }).sort((a, b) => b.fechaSubida.getTime() - a.fechaSubida.getTime()); // Ordenar por fecha descendente
+  }).sort((a, b) => {
+    // Asegurarse de que fechaSubida sea un objeto Date antes de llamar a getTime()
+    const fechaA = a.fechaSubida instanceof Date ? a.fechaSubida : new Date(a.fechaSubida);
+    const fechaB = b.fechaSubida instanceof Date ? b.fechaSubida : new Date(b.fechaSubida);
+    return fechaB.getTime() - fechaA.getTime(); // Ordenar por fecha descendente
+  });
   
   // Formatear tamaño de archivo
   const formatFileSize = (bytes: number) => {
@@ -195,7 +200,14 @@ export default function AdministracionPage() {
     return (
       <div>
         <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Personal de la Dirección</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Personal de la Dirección</h2>
+            {canEdit() && (
+              <p className="text-sm text-gray-500 mt-1">
+                Puedes agregar nueva información o editar la existente usando los botones correspondientes.
+              </p>
+            )}
+          </div>
           {canEdit() && (
             <button
               onClick={() => {
@@ -310,9 +322,11 @@ export default function AdministracionPage() {
                             });
                             setShowPersonalModal(true);
                           }}
-                          className="text-blue-600 hover:text-blue-800 mr-2"
+                          className="bg-blue-100 text-blue-600 hover:bg-blue-200 p-1.5 rounded flex items-center"
+                          title="Editar información personal"
                         >
                           <Edit size={16} />
+                          <span className="ml-1 hidden sm:inline">Editar</span>
                         </button>
                       </td>
                     )}
@@ -331,7 +345,14 @@ export default function AdministracionPage() {
     return (
       <div>
         <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Licencias del Personal</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Licencias del Personal</h2>
+            {canEdit() && (
+              <p className="text-sm text-gray-500 mt-1">
+                Puedes agregar nuevas licencias o modificar las existentes usando los botones de edición.
+              </p>
+            )}
+          </div>
           {canEdit() && (
             <button
               onClick={() => {
@@ -488,21 +509,27 @@ export default function AdministracionPage() {
                     
                     {canEdit() && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button
-                          onClick={() => {
-                            setEditingItem(licencia);
-                            setShowLicenciaModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-800 mr-2"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => deleteLicencia(licencia.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingItem(licencia);
+                              setShowLicenciaModal(true);
+                            }}
+                            className="bg-blue-100 text-blue-600 hover:bg-blue-200 p-1.5 rounded flex items-center"
+                            title="Editar licencia"
+                          >
+                            <Edit size={16} />
+                            <span className="ml-1 hidden sm:inline">Editar</span>
+                          </button>
+                          <button
+                            onClick={() => deleteLicencia(licencia.id)}
+                            className="bg-red-100 text-red-600 hover:bg-red-200 p-1.5 rounded flex items-center"
+                            title="Eliminar licencia"
+                          >
+                            <Trash2 size={16} />
+                            <span className="ml-1 hidden sm:inline">Eliminar</span>
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -549,7 +576,7 @@ export default function AdministracionPage() {
                 
                 <div className="text-xs text-gray-500 mb-3">
                   <p>Subido por: {uploader ? `${uploader.firstName} ${uploader.lastName}` : 'Usuario desconocido'}</p>
-                  <p>Fecha: {doc.fechaSubida.toLocaleDateString('es-ES')}</p>
+                  <p>Fecha: {(doc.fechaSubida instanceof Date ? doc.fechaSubida : new Date(doc.fechaSubida)).toLocaleDateString('es-ES')}</p>
                   <p>Tamaño: {formatFileSize(doc.tamaño)}</p>
                 </div>
                 

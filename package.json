@@ -7,7 +7,12 @@
     "dev:custom": "node server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "start:clean": "node scripts/start-server.js",
+    "start:clean:bash": "bash scripts/start-server.sh",
+    "kill:ports": "node scripts/kill-ports.js",
+    "prepare:production": "node scripts/prepare-production.js",
+    "start:production": "bash scripts/start-production.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
