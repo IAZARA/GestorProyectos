@@ -5,7 +5,9 @@ let socket: Socket | null = null;
 export const initializeSocket = (userId: string) => {
   if (!socket) {
     // Inicializar la conexión
-    socket = io(process.env.NEXTAUTH_URL || 'http://localhost:3001', {
+    // Usar la URL base actual del navegador en lugar de hardcodear localhost:3001
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    socket = io(baseUrl, {
       withCredentials: true,
     });
 

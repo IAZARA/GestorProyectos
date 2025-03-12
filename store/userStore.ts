@@ -104,6 +104,8 @@ const useUserStore = create<UserState>()(
         
         addUser: async (userData) => {
           try {
+            console.log('Intentando crear usuario:', userData.email);
+            
             // Usar una sal más fuerte para mayor seguridad
             const salt = await bcrypt.genSalt(12);
             const hashedPassword = await bcrypt.hash(userData.password, salt);
@@ -114,10 +116,42 @@ const useUserStore = create<UserState>()(
               password: hashedPassword
             };
             
+            // Intentar guardar en la base de datos si estamos en el cliente
+            if (typeof window !== 'undefined') {
+              try {
+                // Aquí deberíamos hacer una llamada a la API para crear el usuario en la base de datos
+                const response = await fetch('/api/users', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    ...userData,
+                    password: userData.password // La API se encargará de hashear la contraseña
+                  }),
+                });
+                
+                if (!response.ok) {
+                  const errorData = await response.json();
+                  console.error('Error al crear usuario en la API:', errorData);
+                  throw new Error('Error al crear usuario en la base de datos');
+                }
+                
+                const createdUser = await response.json();
+                console.log('Usuario creado en la base de datos:', createdUser);
+                
+                // Usar el ID generado por la base de datos
+                newUser.id = createdUser.id;
+              } catch (apiError) {
+                console.error('Error al llamar a la API para crear usuario:', apiError);
+                // Continuar con la creación local, pero loguear el error
+              }
+            }
+            
             set((state) => {
               const updatedUsers = [...state.users, newUser];
-              console.log('Usuario creado:', newUser.email);
-              console.log('Total usuarios:', updatedUsers.length);
+              console.log('Usuario creado localmente:', newUser.email);
+              console.log('Total usuarios locales:', updatedUsers.length);
               
               // Guardar manualmente en localStorage
               setTimeout(() => saveToLocalStorage({

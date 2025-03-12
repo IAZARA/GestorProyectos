@@ -12,7 +12,7 @@ interface NotificationPayload {
 export function initializeSocketServer(httpServer: HttpServer) {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.NEXTAUTH_URL || 'http://localhost:3000',
+      origin: '*',
       methods: ['GET', 'POST'],
       credentials: true
     }
