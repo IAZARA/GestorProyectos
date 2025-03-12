@@ -1,4 +1,4 @@
-export const getLocalStorage = (key: string): any => {
+const getLocalStorage = (key: string): any => {
   if (typeof window !== 'undefined') {
     try {
       const item = window.localStorage.getItem(key);
@@ -11,7 +11,7 @@ export const getLocalStorage = (key: string): any => {
   return null;
 };
 
-export const setLocalStorage = (key: string, value: any): void => {
+const setLocalStorage = (key: string, value: any): void => {
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
@@ -21,7 +21,7 @@ export const setLocalStorage = (key: string, value: any): void => {
   }
 };
 
-export const removeLocalStorage = (key: string): void => {
+const removeLocalStorage = (key: string): void => {
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.removeItem(key);
@@ -31,7 +31,7 @@ export const removeLocalStorage = (key: string): void => {
   }
 };
 
-export const clearLocalStorage = (): void => {
+const clearLocalStorage = (): void => {
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.clear();
@@ -39,4 +39,11 @@ export const clearLocalStorage = (): void => {
       console.error('Error al limpiar el storage:', error);
     }
   }
+};
+
+export {
+  getLocalStorage,
+  setLocalStorage,
+  removeLocalStorage,
+  clearLocalStorage
 }; 

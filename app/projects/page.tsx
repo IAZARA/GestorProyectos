@@ -7,10 +7,19 @@ import { useUserStore } from '../../store/userStore';
 import { Project, ProjectStatus } from '../../types/project';
 import { Plus, Calendar, Users, Search, Filter, ArrowUpRight } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
-import ProjectList from '../../components/ProjectList';
-import ProjectFilters from '../../components/ProjectFilters';
+import dynamic from 'next/dynamic';
 
-export default function ProjectsPage() {
+const ProjectList = dynamic(() => import('../../components/ProjectList'), {
+  ssr: false,
+  loading: () => <div>Cargando proyectos...</div>
+});
+
+const ProjectFilters = dynamic(() => import('../../components/ProjectFilters'), {
+  ssr: false,
+  loading: () => <div>Cargando filtros...</div>
+});
+
+function ProjectsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -390,16 +399,20 @@ export default function ProjectsPage() {
   };
 
   return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">Proyectos</h1>
+      <ProjectFilters />
+      <ProjectList />
+    </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
     <ProtectedRoute>
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Proyectos</h1>
-        <Suspense fallback={<div>Cargando filtros...</div>}>
-          <ProjectFilters />
-        </Suspense>
-        <Suspense fallback={<div>Cargando proyectos...</div>}>
-          <ProjectList />
-        </Suspense>
-      </div>
+      <Suspense fallback={<div>Cargando...</div>}>
+        <ProjectsContent />
+      </Suspense>
     </ProtectedRoute>
   );
 } 
