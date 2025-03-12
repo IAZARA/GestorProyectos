@@ -2,6 +2,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Filter } from 'lucide-react';
+import { ProjectStatus, ProjectPriority } from '../types/project';
 
 export default function ProjectFilters() {
   const searchParams = useSearchParams();
@@ -30,9 +31,9 @@ export default function ProjectFilters() {
           onChange={(e) => handleFilterChange('status', e.target.value)}
         >
           <option value="">Estado</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="en_progreso">En Progreso</option>
-          <option value="completado">Completado</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="En_Progreso">En Progreso</option>
+          <option value="Completado">Completado</option>
         </select>
         
         <select
@@ -41,9 +42,9 @@ export default function ProjectFilters() {
           onChange={(e) => handleFilterChange('priority', e.target.value)}
         >
           <option value="">Prioridad</option>
-          <option value="baja">Baja</option>
-          <option value="media">Media</option>
-          <option value="alta">Alta</option>
+          <option value="Baja">Baja</option>
+          <option value="Media">Media</option>
+          <option value="Alta">Alta</option>
         </select>
       </div>
     </div>

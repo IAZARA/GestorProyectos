@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Project, Task, Comment, ProjectStatus, Attachment } from '../types/project';
+import { Project, Task, Comment, ProjectStatus, Attachment, ProjectPriority } from '../types/project';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ProjectState {
@@ -74,7 +74,8 @@ const initialProjects: Project[] = [
     ],
     wikiContent: '# Proyecto Demo\n\nEste es un ejemplo de contenido wiki para el proyecto de demostración.\n\n## Objetivos\n\n- Mostrar las funcionalidades del sistema\n- Servir como ejemplo para los usuarios',
     createdAt: new Date('2023-01-01'),
-    updatedAt: new Date('2023-01-01')
+    updatedAt: new Date('2023-01-01'),
+    priority: 'Media'
   }
 ];
 
@@ -93,7 +94,9 @@ export const useProjectStore = create<ProjectState>()(
           comments: [],
           attachments: [],
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
+          priority: projectData.priority || 'Media',
+          status: projectData.status || 'Pendiente'
         };
         
         set((state) => ({

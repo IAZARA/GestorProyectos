@@ -1,6 +1,7 @@
 import { User } from './user';
 
 export type ProjectStatus = 'Pendiente' | 'En_Progreso' | 'Completado';
+export type ProjectPriority = 'Baja' | 'Media' | 'Alta';
 export type TaskStatus = 'Por Hacer' | 'En Progreso' | 'En Revisión' | 'Completado';
 
 export interface Task {
@@ -39,6 +40,7 @@ export interface Project {
   name: string;
   description: string;
   status: ProjectStatus;
+  priority: ProjectPriority;
   startDate: Date;
   endDate?: Date;
   createdBy: string; // ID del usuario que creó el proyecto
