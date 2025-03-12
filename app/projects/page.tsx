@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useProjectStore } from '../../store/projectStore';
 import { useUserStore } from '../../store/userStore';
-import { Project, ProjectStatus } from '../../types/project';
+import { Project, ProjectStatus, ProjectPriority } from '../../types/project';
 import { Plus, Calendar, Users, Search, Filter, ArrowUpRight } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
 import dynamic from 'next/dynamic';
@@ -30,6 +30,7 @@ function ProjectsContent() {
     name: '',
     description: '',
     status: 'Pendiente' as ProjectStatus,
+    priority: 'Media' as ProjectPriority,
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     members: [] as string[]
@@ -106,7 +107,8 @@ function ProjectsContent() {
       setNewProject({
         name: '',
         description: '',
-        status: 'Pendiente',
+        status: 'Pendiente' as ProjectStatus,
+        priority: 'Media' as ProjectPriority,
         startDate: new Date().toISOString().split('T')[0],
         endDate: '',
         members: []
