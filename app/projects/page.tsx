@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useProjectStore } from '../../store/projectStore';
@@ -7,6 +7,8 @@ import { useUserStore } from '../../store/userStore';
 import { Project, ProjectStatus } from '../../types/project';
 import { Plus, Calendar, Users, Search, Filter, ArrowUpRight } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
+import ProjectList from '../../components/ProjectList';
+import ProjectFilters from '../../components/ProjectFilters';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -389,7 +391,15 @@ export default function ProjectsPage() {
 
   return (
     <ProtectedRoute>
-      <ProjectsContent />
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-8">Proyectos</h1>
+        <Suspense fallback={<div>Cargando filtros...</div>}>
+          <ProjectFilters />
+        </Suspense>
+        <Suspense fallback={<div>Cargando proyectos...</div>}>
+          <ProjectList />
+        </Suspense>
+      </div>
     </ProtectedRoute>
   );
 } 

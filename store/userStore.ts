@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { User, Role, Expertise } from '../types/user';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
+import { getLocalStorage, setLocalStorage } from '../lib/localStorage';
 
 interface UserState {
   users: User[];
@@ -58,14 +59,7 @@ const initialUsers: User[] = [
 // Función para guardar en localStorage manualmente
 const saveToLocalStorage = (state: any) => {
   try {
-    const serializedState = JSON.stringify({
-      state: {
-        users: state.users,
-        currentUser: state.currentUser
-      },
-      version: 1
-    });
-    localStorage.setItem('user-storage', serializedState);
+    setLocalStorage('user-storage', state);
     console.log('Estado guardado en localStorage:', state.users.length, 'usuarios');
   } catch (error) {
     console.error('Error al guardar en localStorage:', error);
@@ -75,13 +69,12 @@ const saveToLocalStorage = (state: any) => {
 // Función para cargar desde localStorage manualmente
 const loadFromLocalStorage = (): { users: User[], currentUser: User | null } | null => {
   try {
-    const serializedState = localStorage.getItem('user-storage');
-    if (!serializedState) return null;
-    
-    const parsed = JSON.parse(serializedState);
-    console.log('Estado cargado desde localStorage:', 
-      parsed?.state?.users?.length || 0, 'usuarios');
-    return parsed.state;
+    const savedState = getLocalStorage('user-storage');
+    if (savedState) {
+      console.log('Estado cargado desde localStorage:', savedState.users.length, 'usuarios');
+      return savedState;
+    }
+    return null;
   } catch (error) {
     console.error('Error al cargar desde localStorage:', error);
     return null;
