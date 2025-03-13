@@ -189,12 +189,12 @@ export const useAdminStore = create<AdminState>()(
           // Notificar a todos los usuarios
           allUsers.forEach(user => {
             if (user.id !== currentUser.id) {
-              sendNotification(
-                'document_uploaded',
-                `${currentUser.firstName} ${currentUser.lastName} ha subido un nuevo documento: "${newDocumento.titulo}"`,
-                currentUser.id,
-                user.id
-              );
+              sendNotification({
+                type: 'document_uploaded',
+                content: `${currentUser.firstName} ${currentUser.lastName} ha subido un nuevo documento: "${newDocumento.titulo}"`,
+                fromId: currentUser.id,
+                toId: user.id
+              });
             }
           });
         }

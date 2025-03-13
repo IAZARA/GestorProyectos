@@ -101,12 +101,12 @@ export const useCalendarStore = create<CalendarState>()(
               if (project) {
                 project.members.forEach(memberId => {
                   if (memberId !== currentUser.id) {
-                    sendNotification(
-                      'event_added',
-                      `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
-                      currentUser.id,
-                      memberId
-                    );
+                    sendNotification({
+                      type: 'event_added',
+                      content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
+                      fromId: currentUser.id,
+                      toId: memberId
+                    });
                   }
                 });
               }
@@ -115,12 +115,12 @@ export const useCalendarStore = create<CalendarState>()(
             // Si es un evento general, notificar a todos los usuarios
             allUsers.forEach(user => {
               if (user.id !== currentUser.id) {
-                sendNotification(
-                  'event_added',
-                  `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
-                  currentUser.id,
-                  user.id
-                );
+                sendNotification({
+                  type: 'event_added',
+                  content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
+                  fromId: currentUser.id,
+                  toId: user.id
+                });
               }
             });
           }
