@@ -146,12 +146,12 @@ export const useProjectStore = create<ProjectState>()(
               
               if (toUserId !== fromUserId) {
                 console.log(`[PROYECTO] Enviando notificación de nuevo proyecto a usuario ${toUserId}`);
-                sendNotification(
-                  'project_added',
-                  `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${newProject.name}"`,
-                  fromUserId,
-                  toUserId
-                );
+                sendNotification({
+                  type: 'project_added',
+                  content: `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${newProject.name}"`,
+                  fromId: fromUserId,
+                  toId: toUserId
+                });
               }
             });
           }
@@ -189,12 +189,12 @@ export const useProjectStore = create<ProjectState>()(
             // Notificar a todos los miembros del proyecto excepto al editor
             updatedProject.members.forEach(memberId => {
               if (memberId !== currentUser.id) {
-                sendNotification(
-                  'wiki_edited',
-                  `${currentUser.firstName} ${currentUser.lastName} ha editado la wiki del proyecto "${updatedProject.name}"`,
-                  currentUser.id,
-                  memberId
-                );
+                sendNotification({
+                  type: 'wiki_edited',
+                  content: `${currentUser.firstName} ${currentUser.lastName} ha editado la wiki del proyecto "${updatedProject.name}"`,
+                  fromId: currentUser.id,
+                  toId: memberId
+                });
               }
             });
           }
@@ -208,12 +208,12 @@ export const useProjectStore = create<ProjectState>()(
             // Si el usuario actual es gestor o administrador, notificar a los nuevos miembros
             if ((currentUser.role === 'Gestor' || currentUser.role === 'Administrador') && newMembers.length > 0) {
               newMembers.forEach(newMemberId => {
-                sendNotification(
-                  'project_added',
-                  `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${updatedProject.name}"`,
-                  currentUser.id,
-                  newMemberId
-                );
+                sendNotification({
+                  type: 'member_added',
+                  content: `${currentUser.firstName} ${currentUser.lastName} ha añadido a ${newMemberId} al proyecto "${updatedProject.name}"`,
+                  fromId: currentUser.id,
+                  toId: newMemberId
+                });
               });
             }
           }
@@ -222,12 +222,12 @@ export const useProjectStore = create<ProjectState>()(
           if (!projectData.wikiContent && !projectData.members) {
             updatedProject.members.forEach(memberId => {
               if (memberId !== currentUser.id) {
-                sendNotification(
-                  'project_updated',
-                  `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProject.name}"`,
-                  currentUser.id,
-                  memberId
-                );
+                sendNotification({
+                  type: 'project_updated',
+                  content: `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProject.name}"`,
+                  fromId: currentUser.id,
+                  toId: memberId
+                });
               }
             });
           }
@@ -290,12 +290,12 @@ export const useProjectStore = create<ProjectState>()(
           const currentUser = useUserStore.getState().currentUser;
           if (currentUser) {
             const project = projects[projectIndex];
-            sendNotification(
-              'task_assigned',
-              `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
-              currentUser.id,
-              newTask.assignedTo
-            );
+            sendNotification({
+              type: 'task_assigned',
+              content: `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
+              fromId: currentUser.id,
+              toId: newTask.assignedTo
+            });
           }
         }
         
@@ -391,12 +391,12 @@ export const useProjectStore = create<ProjectState>()(
           const project = projects[projectIndex];
           project.members.forEach(memberId => {
             if (memberId !== currentUser.id) {
-              sendNotification(
-                'comment_added',
-                `${currentUser.firstName} ${currentUser.lastName} ha comentado en el proyecto "${project.name}"`,
-                currentUser.id,
-                memberId
-              );
+              sendNotification({
+                type: 'comment_added',
+                content: `${currentUser.firstName} ${currentUser.lastName} ha comentado en el proyecto "${project.name}"`,
+                fromId: currentUser.id,
+                toId: memberId
+              });
             }
           });
         }
