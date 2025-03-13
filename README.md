@@ -1,6 +1,15 @@
 # Gestor de Proyectos
 
-Sistema de gestión de proyectos con notificaciones en tiempo real.
+Sistema de gestión de proyectos con notificaciones en tiempo real para el Ministerio de Seguridad.
+
+![Escudo](escudo%20HD.png)
+
+## Características Principales
+
+- **Gestión de Proyectos**: Creación, asignación y seguimiento de proyectos
+- **Notificaciones en Tiempo Real**: Sistema de notificaciones mediante WebSockets
+- **Gestión de Usuarios**: Administración de usuarios con diferentes roles y permisos
+- **Interfaz Moderna**: Diseño responsive con Tailwind CSS
 
 ## Requisitos
 
@@ -35,8 +44,8 @@ apt update && apt upgrade -y
 apt install git -y
 
 # Clonar el repositorio
-git clone https://github.com/tu-usuario/gestionadcor.git
-cd gestionadcor
+git clone https://github.com/IAZARA/GestorProyectos.git
+cd GestorProyectos
 ```
 
 ### Paso 4: Ejecutar el Script de Configuración
@@ -74,9 +83,37 @@ Una vez completada la configuración, puedes acceder a la aplicación de las sig
 - **Email**: ivan.zarate@minseg.gob.ar
 - **Contraseña**: Vortex733-
 
+## Estructura del Proyecto
+
+El proyecto está organizado en las siguientes carpetas principales:
+
+- `/app`: Componentes y páginas de la aplicación Next.js
+- `/components`: Componentes reutilizables
+- `/lib`: Utilidades y funciones auxiliares
+- `/prisma`: Esquema de la base de datos y migraciones
+- `/server`: Código del servidor WebSocket para notificaciones
+- `/store`: Gestión del estado con Zustand
+- `/types`: Definiciones de tipos TypeScript
+
 ## Comandos Útiles
 
-### Iniciar la Aplicación Manualmente
+### Desarrollo Local
+
+```bash
+# Instalar dependencias
+npm install
+
+# Iniciar la base de datos
+docker-compose up -d
+
+# Ejecutar migraciones
+npx prisma migrate deploy
+
+# Iniciar el servidor de desarrollo
+npm run dev:socket
+```
+
+### Iniciar la Aplicación en Producción
 
 ```bash
 ./start.sh
@@ -138,6 +175,18 @@ Si no aparece, inicia la base de datos:
 docker-compose up -d
 ```
 
+### Problemas con las notificaciones
+
+Si las notificaciones no funcionan correctamente:
+
+```bash
+# Verificar el estado del servidor WebSocket
+pm2 logs gestionadcor
+
+# Reiniciar el servidor
+pm2 restart gestionadcor
+```
+
 ### Reiniciar todo el sistema
 
 ```bash
@@ -179,4 +228,18 @@ npm run build
 
 # Iniciar la aplicación
 pm2 start gestionadcor
-``` 
+```
+
+## Contribuir
+
+Si deseas contribuir al proyecto, por favor:
+
+1. Haz un fork del repositorio
+2. Crea una rama para tu funcionalidad (`git checkout -b feature/nueva-funcionalidad`)
+3. Haz commit de tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
+4. Haz push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Abre un Pull Request
+
+## Licencia
+
+Este proyecto es propiedad del Ministerio de Seguridad y está destinado para uso interno. 
