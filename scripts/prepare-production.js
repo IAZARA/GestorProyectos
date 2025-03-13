@@ -100,6 +100,18 @@ function checkDirectories() {
     }
   });
   
+  // Crear directorio de uploads si no existe
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  
+  // Crear directorio de logs si no existe
+  const logsDir = path.join(__dirname, '..', 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  
   console.log(`${colors.green}Directorios verificados.${colors.reset}`);
 }
 

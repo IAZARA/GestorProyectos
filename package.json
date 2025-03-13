@@ -12,7 +12,10 @@
     "start:clean:bash": "bash scripts/start-server.sh",
     "kill:ports": "node scripts/kill-ports.js",
     "prepare:production": "node scripts/prepare-production.js",
-    "start:production": "bash scripts/start-production.sh"
+    "start:production": "NODE_ENV=production pm2 start ecosystem.config.js",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset --force",
+    "generate:secret": "node scripts/generate-secret.js"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
