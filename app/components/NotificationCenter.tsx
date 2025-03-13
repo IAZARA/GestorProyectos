@@ -25,43 +25,50 @@ export default function NotificationCenter() {
   const [unreadCount, setUnreadCount] = useState(0);
   const currentUser = useUserStore(state => state.currentUser);
   const [socketStatus, setSocketStatus] = useState<string>('Desconectado');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   useEffect(() => {
     if (currentUser) {
       // Forzar el ID correcto para Ivan Zarate
       let userId = currentUser.id;
       if (currentUser.email === 'ivan.zarate@minseg.gob.ar' && userId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
-        console.log('Corrigiendo ID de Ivan Zarate en NotificationCenter:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+        console.log('[NOTIFICACIONES] Corrigiendo ID de Ivan Zarate en NotificationCenter:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
         userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+      }
+      
+      // Forzar el ID correcto para Maxi Scarimbolo
+      if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar' && userId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
+        console.log('[NOTIFICACIONES] Corrigiendo ID de Maxi Scarimbolo en NotificationCenter:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+        userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
       }
       
       // Inicializar el socket cuando el usuario está autenticado
       const socket = initializeSocket(userId);
       
-      console.log('NotificationCenter: Socket inicializado para usuario', userId);
+      console.log('[NOTIFICACIONES] Socket inicializado para usuario', userId);
       setSocketStatus('Conectando...');
 
       // Manejar la conexión
       socket.on('connect', () => {
-        console.log('NotificationCenter: Socket conectado con ID:', socket.id);
+        console.log('[NOTIFICACIONES] Socket conectado con ID:', socket.id);
         setSocketStatus('Conectado');
       });
 
       // Manejar la desconexión
       socket.on('disconnect', () => {
-        console.log('NotificationCenter: Socket desconectado');
+        console.log('[NOTIFICACIONES] Socket desconectado');
         setSocketStatus('Desconectado');
       });
 
       // Manejar errores
       socket.on('connect_error', (error) => {
-        console.error('NotificationCenter: Error de conexión:', error);
+        console.error('[NOTIFICACIONES] Error de conexión:', error);
         setSocketStatus(`Error: ${error.message}`);
       });
 
       // Escuchar notificaciones no leídas
       socket.on('notification:unread', (unreadNotifications: Notification[]) => {
-        console.log('NotificationCenter: Recibidas notificaciones no leídas', unreadNotifications);
+        console.log('[NOTIFICACIONES] Recibidas notificaciones no leídas', unreadNotifications);
         if (unreadNotifications && unreadNotifications.length > 0) {
           setNotifications(prev => {
             // Combinar con notificaciones existentes, evitando duplicados
@@ -71,13 +78,13 @@ export default function NotificationCenter() {
           });
           setUnreadCount(unreadNotifications.length);
         } else {
-          console.log('NotificationCenter: No hay notificaciones no leídas');
+          console.log('[NOTIFICACIONES] No hay notificaciones no leídas');
         }
       });
 
       // Escuchar nuevas notificaciones
       socket.on('notification:new', (notification: Notification) => {
-        console.log('NotificationCenter: Nueva notificación recibida', notification);
+        console.log('[NOTIFICACIONES] Nueva notificación recibida', notification);
         setNotifications(prev => [notification, ...prev]);
         setUnreadCount(prev => prev + 1);
         
@@ -97,22 +104,25 @@ export default function NotificationCenter() {
       // Forzar una solicitud de notificaciones no leídas
       const requestNotifications = () => {
         if (socket.connected) {
-          console.log('NotificationCenter: Solicitando notificaciones no leídas manualmente');
+          console.log('[NOTIFICACIONES] Solicitando notificaciones no leídas manualmente');
           socket.emit('get:unreadNotifications');
+          setLastRefresh(new Date());
         } else {
-          console.log('NotificationCenter: No se pueden solicitar notificaciones, socket desconectado');
+          console.log('[NOTIFICACIONES] No se pueden solicitar notificaciones, socket desconectado');
+          // Intentar reconectar si está desconectado
+          socket.connect();
         }
       };
       
       // Solicitar notificaciones inmediatamente y luego cada 10 segundos
-      setTimeout(requestNotifications, 2000);
+      requestNotifications();
       const intervalId = setInterval(requestNotifications, 10000);
 
       return () => {
         // Limpiar los listeners cuando el componente se desmonta
         const socket = getSocket();
         if (socket) {
-          console.log('NotificationCenter: Limpiando listeners de socket');
+          console.log('[NOTIFICACIONES] Limpiando listeners de socket');
           socket.off('connect');
           socket.off('disconnect');
           socket.off('connect_error');
@@ -179,6 +189,27 @@ export default function NotificationCenter() {
     }
   };
 
+  const handleRefreshNotifications = () => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      console.log('[NOTIFICACIONES] Actualizando notificaciones manualmente');
+      socket.emit('get:unreadNotifications');
+      setLastRefresh(new Date());
+    } else {
+      console.log('[NOTIFICACIONES] No se pueden actualizar notificaciones, socket desconectado');
+      // Intentar reconectar e inicializar de nuevo
+      if (currentUser) {
+        let userId = currentUser.id;
+        if (currentUser.email === 'ivan.zarate@minseg.gob.ar') {
+          userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+        } else if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar') {
+          userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+        }
+        initializeSocket(userId);
+      }
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -201,42 +232,59 @@ export default function NotificationCenter() {
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg overflow-hidden z-50">
           <div className="p-3 border-b flex justify-between items-center">
             <h3 className="text-sm font-semibold">Notificaciones</h3>
-            {unreadCount > 0 && (
+            <div className="flex space-x-2">
               <button
-                className="text-xs text-blue-600 hover:text-blue-800"
-                onClick={handleMarkAllAsRead}
+                className="text-xs text-gray-600 hover:text-gray-800"
+                onClick={handleRefreshNotifications}
+                title="Actualizar notificaciones"
               >
-                Marcar todas como leídas
+                Actualizar
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                  onClick={handleMarkAllAsRead}
+                >
+                  Marcar todas como leídas
+                </button>
+              )}
+            </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
                 No tienes notificaciones
+                <div className="text-xs mt-1 text-gray-400">
+                  Última actualización: {lastRefresh.toLocaleTimeString()}
+                </div>
               </div>
             ) : (
-              notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`p-3 border-b hover:bg-gray-50 ${
-                    !notification.isRead ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => !notification.isRead && handleMarkAsRead(notification.id)}
-                >
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0 mr-3">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{notification.content}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formatDate(notification.createdAt)}
-                      </p>
+              <>
+                {notifications.map(notification => (
+                  <div
+                    key={notification.id}
+                    className={`p-3 border-b hover:bg-gray-50 ${
+                      !notification.isRead ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => !notification.isRead && handleMarkAsRead(notification.id)}
+                  >
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0 mr-3">
+                        {getNotificationIcon(notification.type)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm">{notification.content}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatDate(notification.createdAt)}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                ))}
+                <div className="p-2 text-center text-xs text-gray-400">
+                  Última actualización: {lastRefresh.toLocaleTimeString()}
                 </div>
-              ))
+              </>
             )}
           </div>
         </div>

@@ -322,7 +322,9 @@ export default function ProfilePage() {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full p-2 border rounded"
+                  onFocus={(e) => e.target.select()}
+                  autoComplete="new-password"
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Nueva contraseña"
                 />
               </div>
@@ -336,7 +338,9 @@ export default function ProfilePage() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="w-full p-2 border rounded"
+                  onFocus={(e) => e.target.select()}
+                  autoComplete="new-password"
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Confirma tu nueva contraseña"
                 />
               </div>

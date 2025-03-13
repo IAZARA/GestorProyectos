@@ -14,6 +14,9 @@ const socket_io_1 = require("socket.io");
 const client_1 = require("@prisma/client");
 const prisma = new client_1.PrismaClient();
 
+// Mapeo de usuarios a sockets
+const userSockets = new Map();
+
 function initializeSocketServer(httpServer) {
     const io = new socket_io_1.Server(httpServer, {
         cors: {
@@ -25,187 +28,201 @@ function initializeSocketServer(httpServer) {
     
     console.log(`Servidor de sockets inicializado en ${process.env.NEXTAUTH_URL || 'http://localhost:3000'}`);
     
-    // Mapa para mantener un registro de qué socket pertenece a qué usuario
-    const userSocketMap = new Map();
-    
-    io.on('connection', (socket) => {
-        console.log('Cliente conectado:', socket.id);
+    io.on('connection', async (socket) => {
+        console.log(`[SOCKET-SERVER] Nueva conexión: ${socket.id}`);
         
-        // Autenticar al usuario y registrar su socket
-        socket.on('authenticate', (userId) => {
-            // Verificar si el ID es válido
-            if (!userId || typeof userId !== 'string') {
-                console.warn('ID de usuario inválido:', userId);
-                socket.emit('error', { message: 'ID de usuario inválido' });
-                return;
-            }
+        // Obtener el ID de usuario de la autenticación
+        const userId = socket.handshake.auth?.userId;
+        
+        if (!userId) {
+            console.log('[SOCKET-SERVER] Conexión sin ID de usuario, desconectando');
+            socket.disconnect();
+            return;
+        }
+        
+        console.log(`[SOCKET-SERVER] Usuario conectado: ${userId}`);
+        
+        // Verificar y corregir IDs conocidos
+        let correctedUserId = userId;
+        
+        // Corregir ID para Ivan Zarate si es necesario
+        if (userId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c' && 
+            (userId.includes('ivan') || userId.includes('zarate'))) {
+            console.log('[SOCKET-SERVER] Corrigiendo ID de Ivan Zarate:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+            correctedUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+        }
+        
+        // Corregir ID para Maxi Scarimbolo si es necesario
+        if (userId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f' && 
+            (userId.includes('maxi') || userId.includes('scarimbolo'))) {
+            console.log('[SOCKET-SERVER] Corrigiendo ID de Maxi Scarimbolo:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+            correctedUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+        }
+        
+        // Verificar que el usuario existe en la base de datos
+        try {
+            const user = await prisma.user.findUnique({
+                where: { id: correctedUserId }
+            });
             
-            // Forzar el ID correcto para Ivan Zarate
-            if (userId === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-                console.log('Corrigiendo ID de Ivan Zarate en servidor:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-                userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-            }
-            
-            // Forzar el ID correcto para Maxi Scarimbolo
-            if (userId === '2' || userId === 'gestor') {
-                console.log('Corrigiendo ID de Maxi Scarimbolo en servidor:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
-                userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-            }
-            
-            userSocketMap.set(userId, socket.id);
-            console.log(`Usuario ${userId} autenticado con socket ${socket.id}`);
-            
-            // Unirse a una sala específica para este usuario
-            socket.join(`user:${userId}`);
-            
-            // Enviar notificaciones no leídas al usuario cuando se conecta
-            sendUnreadNotifications(userId, socket);
-        });
-
-        // Manejar solicitudes manuales de notificaciones no leídas
-        socket.on('get:unreadNotifications', () => {
-            // Encontrar el userId asociado con este socket
-            let foundUserId = null;
-            for (const [userId, socketId] of userSocketMap.entries()) {
-                if (socketId === socket.id) {
-                    foundUserId = userId;
-                    break;
-                }
-            }
-
-            if (foundUserId) {
-                console.log(`Solicitud manual de notificaciones no leídas para usuario ${foundUserId}`);
-                sendUnreadNotifications(foundUserId, socket);
-            } else {
-                console.warn('Solicitud de notificaciones no leídas de un socket no autenticado:', socket.id);
-                // Intentar enviar un mensaje de error al cliente
-                socket.emit('error', { message: 'No autenticado' });
-            }
-        });
-
-        // Manejar la creación de notificaciones
-        socket.on('notification:create', (payload) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                console.log(`[SERVIDOR] Recibida solicitud para crear notificación: ${JSON.stringify(payload)}`);
-                
-                // Verificar si los IDs son válidos
-                if (!payload.fromUserId || !payload.toUserId || typeof payload.fromUserId !== 'string' || typeof payload.toUserId !== 'string') {
-                    console.warn('IDs de usuario inválidos en notification:create:', payload);
-                    socket.emit('error', { message: 'IDs de usuario inválidos' });
-                    return;
-                }
-                
-                // Verificar si el ID de Maxi Scarimbolo es correcto
-                if (payload.toUserId === 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
-                    console.log('[SERVIDOR] ID de Maxi Scarimbolo es correcto:', payload.toUserId);
-                }
-                
-                // Verificar si el ID de Ivan Zarate es correcto
-                if (payload.toUserId === '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
-                    console.log('[SERVIDOR] ID de Ivan Zarate es correcto:', payload.toUserId);
-                }
-                
-                // Forzar el ID correcto para Ivan Zarate
-                if (payload.toUserId === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-                    console.log('Corrigiendo ID de Ivan Zarate en notification:create:', payload.toUserId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-                    payload.toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-                }
-                
-                console.log(`[SERVIDOR] Creando notificación: ${payload.type} de ${payload.fromUserId} a ${payload.toUserId}`);
-                
-                // Verificar si el usuario destinatario existe en la base de datos
-                const toUser = yield prisma.user.findUnique({
-                    where: { id: payload.toUserId }
-                });
-                
-                if (!toUser) {
-                    console.error(`[SERVIDOR] Error: Usuario destinatario con ID ${payload.toUserId} no encontrado en la base de datos`);
-                    socket.emit('error', { message: `Usuario destinatario con ID ${payload.toUserId} no encontrado` });
-                    return;
-                }
-                
-                console.log(`[SERVIDOR] Usuario destinatario encontrado: ${toUser.firstName} ${toUser.lastName} (${toUser.email})`);
-                
-                // Verificar si el usuario remitente existe en la base de datos
-                const fromUser = yield prisma.user.findUnique({
-                    where: { id: payload.fromUserId }
-                });
-                
-                if (!fromUser) {
-                    console.error(`[SERVIDOR] Error: Usuario remitente con ID ${payload.fromUserId} no encontrado en la base de datos`);
-                    socket.emit('error', { message: `Usuario remitente con ID ${payload.fromUserId} no encontrado` });
-                    return;
-                }
-                
-                console.log(`[SERVIDOR] Usuario remitente encontrado: ${fromUser.firstName} ${fromUser.lastName} (${fromUser.email})`);
-                
-                // Guardar la notificación en la base de datos
-                const notification = yield prisma.notification.create({
-                    data: {
-                        type: payload.type,
-                        content: payload.content,
-                        fromId: payload.fromUserId,
-                        toId: payload.toUserId,
-                        isRead: false
+            if (!user) {
+                console.log(`[SOCKET-SERVER] Usuario no encontrado en la base de datos: ${correctedUserId}`);
+                // Intentar buscar por nombre o email para diagnóstico
+                const possibleUsers = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { firstName: { contains: userId, mode: 'insensitive' } },
+                            { lastName: { contains: userId, mode: 'insensitive' } },
+                            { email: { contains: userId, mode: 'insensitive' } }
+                        ]
                     }
                 });
                 
-                console.log(`[SERVIDOR] Notificación creada con ID: ${notification.id}`);
-                
-                // Verificar si el usuario destinatario está conectado
-                const socketId = userSocketMap.get(payload.toUserId);
-                if (socketId) {
-                    console.log(`[SERVIDOR] Usuario destinatario está conectado con socket ID: ${socketId}`);
-                } else {
-                    console.log(`[SERVIDOR] Usuario destinatario NO está conectado actualmente`);
+                if (possibleUsers.length > 0) {
+                    console.log('[SOCKET-SERVER] Posibles coincidencias de usuario:', possibleUsers.map(u => `${u.id} (${u.firstName} ${u.lastName})`));
                 }
                 
-                // Enviar la notificación al usuario destinatario si está conectado
-                io.to(`user:${payload.toUserId}`).emit('notification:new', {
-                    id: notification.id,
-                    type: notification.type,
-                    content: notification.content,
-                    fromId: notification.fromId,
-                    createdAt: notification.createdAt,
-                    isRead: notification.isRead
+                socket.disconnect();
+                return;
+            }
+            
+            console.log(`[SOCKET-SERVER] Usuario verificado: ${user.firstName} ${user.lastName} (${correctedUserId})`);
+            
+            // Registrar el socket para este usuario
+            userSockets.set(correctedUserId, socket.id);
+            socket.userId = correctedUserId;
+            
+            // Unir al usuario a su sala personal
+            socket.join(correctedUserId);
+            console.log(`[SOCKET-SERVER] Usuario unido a sala: ${correctedUserId}`);
+            
+            // Enviar notificaciones no leídas al usuario
+            await sendUnreadNotifications(socket, correctedUserId);
+            
+        } catch (error) {
+            console.error('[SOCKET-SERVER] Error al verificar usuario:', error);
+            socket.disconnect();
+            return;
+        }
+        
+        // Manejar solicitud de notificaciones no leídas
+        socket.on('get:unreadNotifications', async () => {
+            console.log(`[SOCKET-SERVER] Solicitud de notificaciones no leídas de: ${socket.userId}`);
+            await sendUnreadNotifications(socket, socket.userId);
+        });
+        
+        // Manejar creación de notificaciones
+        socket.on('notification:send', async (notificationData) => {
+            try {
+                console.log('[SOCKET-SERVER] Solicitud para enviar notificación:', notificationData);
+                
+                // Verificar datos mínimos requeridos
+                if (!notificationData.type || !notificationData.content || !notificationData.toUserId) {
+                    console.error('[SOCKET-SERVER] Datos de notificación incompletos');
+                    return;
+                }
+                
+                // Usar el ID del socket como remitente si no se proporciona
+                const fromUserId = notificationData.fromUserId || socket.userId;
+                
+                // Corregir ID para Ivan Zarate si es necesario
+                let toUserId = notificationData.toUserId;
+                if (toUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c' && 
+                    (toUserId.includes('ivan') || toUserId.includes('zarate'))) {
+                    console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Ivan Zarate):', toUserId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+                    toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+                }
+                
+                // Corregir ID para Maxi Scarimbolo si es necesario
+                if (toUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f' && 
+                    (toUserId.includes('maxi') || toUserId.includes('scarimbolo'))) {
+                    console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Maxi Scarimbolo):', toUserId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+                    toUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+                }
+                
+                // Verificar que el destinatario existe
+                const toUser = await prisma.user.findUnique({
+                    where: { id: toUserId }
                 });
                 
-                console.log(`[SERVIDOR] Notificación enviada a usuario ${payload.toUserId}`);
-            }
-            catch (error) {
-                console.error('[SERVIDOR] Error al crear notificación:', error);
-                socket.emit('error', { message: 'Error al crear notificación' });
-            }
-        }));
-        
-        // Manejar la marcación de notificaciones como leídas
-        socket.on('notification:markAsRead', (notificationId) => __awaiter(this, void 0, void 0, function* () {
-            try {
-                console.log(`Marcando notificación como leída: ${notificationId}`);
+                if (!toUser) {
+                    console.error(`[SOCKET-SERVER] Usuario destinatario no encontrado: ${toUserId}`);
+                    return;
+                }
                 
-                yield prisma.notification.update({
+                // Crear la notificación en la base de datos
+                const notification = await prisma.notification.create({
+                    data: {
+                        type: notificationData.type,
+                        content: notificationData.content,
+                        from: { connect: { id: fromUserId } },
+                        to: { connect: { id: toUserId } },
+                        isRead: false
+                    },
+                    include: {
+                        from: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                photoUrl: true
+                            }
+                        }
+                    }
+                });
+                
+                console.log(`[SOCKET-SERVER] Notificación creada: ${notification.id} para usuario ${toUserId}`);
+                
+                // Enviar la notificación al destinatario si está conectado
+                const recipientSocketId = userSockets.get(toUserId);
+                if (recipientSocketId) {
+                    console.log(`[SOCKET-SERVER] Enviando notificación a socket: ${recipientSocketId}`);
+                    io.to(recipientSocketId).emit('notification:new', notification);
+                } else {
+                    console.log(`[SOCKET-SERVER] Usuario ${toUserId} no está conectado, la notificación se entregará cuando se conecte`);
+                }
+                
+            } catch (error) {
+                console.error('[SOCKET-SERVER] Error al crear notificación:', error);
+            }
+        });
+        
+        // Manejar marcar notificación como leída
+        socket.on('notification:markAsRead', async (notificationId) => {
+            try {
+                console.log(`[SOCKET-SERVER] Marcando notificación como leída: ${notificationId}`);
+                
+                // Verificar que la notificación existe
+                const notification = await prisma.notification.findUnique({
+                    where: { id: notificationId }
+                });
+                
+                if (!notification) {
+                    console.error(`[SOCKET-SERVER] Notificación no encontrada: ${notificationId}`);
+                    return;
+                }
+                
+                // Actualizar la notificación
+                await prisma.notification.update({
                     where: { id: notificationId },
                     data: { isRead: true }
                 });
                 
-                console.log(`Notificación ${notificationId} marcada como leída`);
+                console.log(`[SOCKET-SERVER] Notificación marcada como leída: ${notificationId}`);
+                
+            } catch (error) {
+                console.error('[SOCKET-SERVER] Error al marcar notificación como leída:', error);
             }
-            catch (error) {
-                console.error('Error al marcar notificación como leída:', error);
-                socket.emit('error', { message: 'Error al marcar notificación como leída' });
-            }
-        }));
+        });
         
-        // Manejar la desconexión
+        // Manejar desconexión
         socket.on('disconnect', () => {
-            // Eliminar el usuario del mapa cuando se desconecta
-            // Convertir a array para evitar problemas de compatibilidad
-            Array.from(userSocketMap.entries()).forEach(([userId, socketId]) => {
-                if (socketId === socket.id) {
-                    userSocketMap.delete(userId);
-                    console.log(`Usuario ${userId} desconectado`);
-                }
-            });
+            console.log(`[SOCKET-SERVER] Usuario desconectado: ${socket.userId}`);
+            
+            // Eliminar el socket del mapeo
+            if (socket.userId) {
+                userSockets.delete(socket.userId);
+            }
         });
     });
     
@@ -213,65 +230,79 @@ function initializeSocketServer(httpServer) {
 }
 
 // Función para enviar notificaciones no leídas a un usuario
-function sendUnreadNotifications(userId, socket) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            // Verificar si el ID es válido
-            if (!userId || typeof userId !== 'string') {
-                console.warn('ID de usuario inválido en sendUnreadNotifications:', userId);
-                socket.emit('error', { message: 'ID de usuario inválido' });
-                return;
-            }
-            
-            // Forzar el ID correcto para Ivan Zarate
-            if (userId === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-                console.log('Corrigiendo ID de Ivan Zarate en sendUnreadNotifications:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-                userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-            }
-            
-            // Forzar el ID correcto para Maxi Scarimbolo
-            if (userId === '2' || userId === 'gestor') {
-                console.log('Corrigiendo ID de Maxi Scarimbolo en sendUnreadNotifications:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
-                userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-            }
-            
-            console.log(`Buscando notificaciones no leídas para usuario ${userId}`);
-            
-            const unreadNotifications = yield prisma.notification.findMany({
-                where: {
-                    toId: userId,
-                    isRead: false
-                },
-                include: {
-                    from: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            photoUrl: true
-                        }
+async function sendUnreadNotifications(socket, userId) {
+    try {
+        console.log(`[SOCKET-SERVER] Buscando notificaciones no leídas para: ${userId}`);
+        
+        // Obtener notificaciones no leídas
+        const unreadNotifications = await prisma.notification.findMany({
+            where: {
+                toId: userId,
+                isRead: false
+            },
+            include: {
+                from: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        photoUrl: true
                     }
-                },
-                orderBy: {
-                    createdAt: 'desc'
                 }
-            });
-            
-            console.log(`Encontradas ${unreadNotifications.length} notificaciones no leídas para usuario ${userId}`);
-            
-            // Siempre enviar el evento, incluso si no hay notificaciones
-            socket.emit('notification:unread', unreadNotifications);
-            
-            if (unreadNotifications.length > 0) {
-                console.log(`Enviadas ${unreadNotifications.length} notificaciones no leídas a usuario ${userId}`);
-            } else {
-                console.log(`No hay notificaciones no leídas para usuario ${userId}`);
+            },
+            orderBy: {
+                createdAt: 'desc'
             }
+        });
+        
+        console.log(`[SOCKET-SERVER] Encontradas ${unreadNotifications.length} notificaciones no leídas para: ${userId}`);
+        
+        // Enviar notificaciones al usuario
+        socket.emit('notification:unread', unreadNotifications);
+        
+    } catch (error) {
+        console.error('[SOCKET-SERVER] Error al enviar notificaciones no leídas:', error);
+    }
+}
+
+// Función para crear una notificación de prueba
+async function createTestNotification(fromUserId, toUserId, type, content) {
+    try {
+        // Verificar que los usuarios existen
+        const fromUser = await prisma.user.findUnique({ where: { id: fromUserId } });
+        const toUser = await prisma.user.findUnique({ where: { id: toUserId } });
+        
+        if (!fromUser || !toUser) {
+            console.error('[SOCKET-SERVER] Usuario no encontrado para notificación de prueba');
+            return null;
         }
-        catch (error) {
-            console.error('Error al obtener notificaciones no leídas:', error);
-            // Intentar enviar un mensaje de error al cliente
-            socket.emit('error', { message: 'Error al obtener notificaciones' });
-        }
-    });
+        
+        // Crear la notificación
+        const notification = await prisma.notification.create({
+            data: {
+                type,
+                content,
+                from: { connect: { id: fromUserId } },
+                to: { connect: { id: toUserId } },
+                isRead: false
+            },
+            include: {
+                from: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        photoUrl: true
+                    }
+                }
+            }
+        });
+        
+        console.log(`[SOCKET-SERVER] Notificación de prueba creada: ${notification.id}`);
+        return notification;
+        
+    } catch (error) {
+        console.error('[SOCKET-SERVER] Error al crear notificación de prueba:', error);
+        return null;
+    }
 }

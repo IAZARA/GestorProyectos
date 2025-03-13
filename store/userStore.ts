@@ -281,24 +281,45 @@ const useUserStore = create<UserState>()(
           });
         },
         
-        getUserById: (id) => {
+        getUserById: (id: string) => {
           // Primero intentar encontrar el usuario por ID exacto
           const userById = get().users.find(user => user.id === id);
-          if (userById) return userById;
-          
-          // Si no se encuentra, verificar si es Ivan Zarate con ID incorrecto
-          if (id === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-            console.log('Buscando a Ivan Zarate con ID correcto en lugar de:', id);
-            return get().users.find(user => user.id === '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+          if (userById) {
+            console.log('[USERSTORE] Usuario encontrado por ID exacto:', userById.firstName, userById.lastName);
+            return userById;
           }
           
-          // Verificar si es Maxi Scarimbolo con ID incorrecto
-          if (id === '2' || id === 'gestor') {
-            console.log('Buscando a Maxi Scarimbolo con ID correcto en lugar de:', id);
-            return get().users.find(user => user.id === 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+          // Intentar encontrar por coincidencia parcial en el ID, nombre o email
+          const userByPartialMatch = get().users.find(user => 
+            (user.id && id && (user.id.includes(id) || id.includes(user.id))) || 
+            (user.firstName && id && user.firstName.toLowerCase().includes(id.toLowerCase())) || 
+            (user.lastName && id && user.lastName.toLowerCase().includes(id.toLowerCase())) || 
+            (user.email && id && user.email.toLowerCase().includes(id.toLowerCase()))
+          );
+          
+          if (userByPartialMatch) {
+            console.log('[USERSTORE] Usuario encontrado por coincidencia parcial:', userByPartialMatch.firstName, userByPartialMatch.lastName);
+            return userByPartialMatch;
           }
           
-          // Si no se encuentra ninguna coincidencia, devolver undefined
+          // Casos específicos conocidos
+          if (id && (id.includes('ivan') || id.includes('zarate'))) {
+            const ivanZarate = get().users.find(user => user.id === '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+            if (ivanZarate) {
+              console.log('[USERSTORE] Corrigiendo ID para Ivan Zarate:', id, '->', ivanZarate.id);
+              return ivanZarate;
+            }
+          }
+          
+          if (id && (id.includes('maxi') || id.includes('scarimbolo'))) {
+            const maxiScarimbolo = get().users.find(user => user.id === 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+            if (maxiScarimbolo) {
+              console.log('[USERSTORE] Corrigiendo ID para Maxi Scarimbolo:', id, '->', maxiScarimbolo.id);
+              return maxiScarimbolo;
+            }
+          }
+          
+          console.error('[USERSTORE] Usuario no encontrado con ID:', id);
           return undefined;
         },
         

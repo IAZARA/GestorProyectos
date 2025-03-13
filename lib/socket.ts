@@ -3,89 +3,94 @@ import { io, Socket } from 'socket.io-client';
 let socket: Socket | null = null;
 
 export const initializeSocket = (userId: string): Socket => {
-  // Forzar el ID correcto para Ivan Zarate
-  if (userId === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-    console.log('Corrigiendo ID de Ivan Zarate en socket.ts:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-    userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+  // Verificar y corregir IDs conocidos
+  let correctedUserId = userId;
+  
+  // Corregir ID para Ivan Zarate
+  if (userId && userId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c' && 
+      (userId.includes('ivan') || userId.includes('zarate'))) {
+    console.log('[SOCKET] Corrigiendo ID de Ivan Zarate:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+    correctedUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
   }
   
-  // Forzar el ID correcto para Maxi Scarimbolo si es necesario
-  if (userId === '2' || userId === 'gestor') {
-    console.log('Corrigiendo ID de Maxi Scarimbolo en socket.ts:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
-    userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+  // Corregir ID para Maxi Scarimbolo
+  if (userId && userId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f' && 
+      (userId.includes('maxi') || userId.includes('scarimbolo'))) {
+    console.log('[SOCKET] Corrigiendo ID de Maxi Scarimbolo:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+    correctedUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
   }
 
-  if (!socket) {
-    // Inicializar la conexión
-    console.log('Inicializando socket con URL: http://localhost:3000 para usuario:', userId);
-    socket = io('http://localhost:3000', {
-      withCredentials: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 10000,
-      autoConnect: true
-    });
-
-    // Manejar la conexión
-    socket.on('connect', () => {
-      console.log('Conectado al servidor de WebSockets con ID:', socket?.id);
+  // Si ya existe un socket y está conectado, lo reutilizamos
+  if (socket) {
+    console.log('[SOCKET] Socket ya inicializado, verificando autenticación');
+    
+    // Si el socket ya está autenticado con otro usuario, lo desconectamos
+    const currentAuthUserId = (socket as any).auth?.userId;
+    if (currentAuthUserId && currentAuthUserId !== correctedUserId) {
+      console.log('[SOCKET] Cambiando autenticación de usuario:', currentAuthUserId, '->', correctedUserId);
+      socket.disconnect();
+      socket = null;
+    } else if (socket.connected) {
+      console.log('[SOCKET] Reutilizando socket existente para usuario:', correctedUserId);
       
-      // Autenticar al usuario
-      socket.emit('authenticate', userId);
-      console.log('Enviada autenticación para usuario:', userId);
-    });
-
-    // Manejar la desconexión
-    socket.on('disconnect', () => {
-      console.log('Desconectado del servidor de WebSockets');
-    });
-
-    // Manejar errores
-    socket.on('connect_error', (error) => {
-      console.error('Error de conexión:', error);
-      console.log('Detalles del error:', error.message);
-    });
-    
-    // Manejar errores del servidor
-    socket.on('error', (error) => {
-      console.error('Error recibido del servidor:', error);
-    });
-    
-    // Manejar reconexiones
-    socket.on('reconnect', (attemptNumber) => {
-      console.log(`Reconectado al servidor después de ${attemptNumber} intentos`);
+      // Actualizar la autenticación por si acaso
+      (socket as any).auth = { userId: correctedUserId };
       
-      // Re-autenticar al usuario
-      socket.emit('authenticate', userId);
-      console.log('Re-enviada autenticación para usuario:', userId);
-    });
-    
-    socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`Intento de reconexión #${attemptNumber}`);
-    });
-    
-    socket.on('reconnect_error', (error) => {
-      console.error('Error de reconexión:', error);
-    });
-    
-    socket.on('reconnect_failed', () => {
-      console.error('Falló la reconexión después de todos los intentos');
-    });
-  } else {
-    console.log('Socket ya inicializado, reutilizando conexión existente');
-    
-    // Si el socket existe pero está desconectado, intentar reconectar
-    if (!socket.connected) {
-      console.log('Socket existente desconectado, intentando reconectar...');
+      // Solicitar notificaciones no leídas inmediatamente
+      setTimeout(() => {
+        if (socket && socket.connected) {
+          console.log('[SOCKET] Solicitando notificaciones no leídas después de reutilizar socket');
+          socket.emit('get:unreadNotifications');
+        }
+      }, 500);
+      
+      return socket;
+    } else {
+      console.log('[SOCKET] Socket existente pero desconectado, reconectando...');
+      (socket as any).auth = { userId: correctedUserId };
       socket.connect();
-    }
-    
-    // Re-autenticar al usuario por si acaso
-    if (socket.connected) {
-      socket.emit('authenticate', userId);
-      console.log('Re-enviada autenticación para usuario:', userId);
+      
+      // Solicitar notificaciones no leídas después de reconectar
+      socket.on('connect', () => {
+        console.log('[SOCKET] Socket reconectado, solicitando notificaciones no leídas');
+        socket?.emit('get:unreadNotifications');
+      });
+      
+      return socket;
     }
   }
+
+  // Crear un nuevo socket
+  console.log('[SOCKET] Creando nuevo socket para usuario:', correctedUserId);
+  socket = io('http://localhost:3000', {
+    auth: { userId: correctedUserId },
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    timeout: 10000
+  });
+
+  // Configurar eventos para el nuevo socket
+  socket.on('connect', () => {
+    console.log('[SOCKET] Conectado con ID:', socket?.id);
+    console.log('[SOCKET] Usuario autenticado:', (socket as any).auth?.userId);
+    
+    // Solicitar notificaciones no leídas inmediatamente después de conectar
+    setTimeout(() => {
+      if (socket && socket.connected) {
+        console.log('[SOCKET] Solicitando notificaciones no leídas después de conectar');
+        socket.emit('get:unreadNotifications');
+      }
+    }, 500);
+  });
+
+  socket.on('connect_error', (error) => {
+    console.error('[SOCKET] Error de conexión:', error.message);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('[SOCKET] Desconectado, razón:', reason);
+  });
 
   return socket;
 };
@@ -94,104 +99,22 @@ export const getSocket = (): Socket | null => {
   return socket;
 };
 
-export const closeSocket = (): void => {
-  if (socket) {
-    console.log('Cerrando conexión de socket');
-    socket.disconnect();
-    socket = null;
+export const sendNotification = (notification: any): void => {
+  if (!socket || !socket.connected) {
+    console.warn('[SOCKET] No se puede enviar notificación, socket no conectado');
+    return;
   }
+  
+  console.log('[SOCKET] Enviando notificación:', notification);
+  socket.emit('notification:send', notification);
 };
 
-// Función para enviar una notificación
-export const sendNotification = (
-  type: string,
-  content: string,
-  fromUserId: string,
-  toUserId: string
-): void => {
-  console.log(`[NOTIFICACIÓN] Intentando enviar notificación: Tipo=${type}, De=${fromUserId}, Para=${toUserId}, Contenido="${content}"`);
-  
-  // Forzar el ID correcto para Ivan Zarate
-  if (toUserId === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
-    console.log('Corrigiendo ID de Ivan Zarate en sendNotification:', toUserId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-    toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-  }
-  
-  // Forzar el ID correcto para Maxi Scarimbolo
-  if (toUserId === '2' || toUserId === 'gestor') {
-    console.log('Corrigiendo ID de Maxi Scarimbolo en sendNotification:', toUserId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
-    toUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-  }
-  
-  // Verificar si el ID de Maxi Scarimbolo es correcto
-  if (toUserId === 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
-    console.log('ID de Maxi Scarimbolo es correcto:', toUserId);
-  }
-  
-  // Verificar si el ID de Ivan Zarate es correcto
-  if (toUserId === '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
-    console.log('ID de Ivan Zarate es correcto:', toUserId);
-  }
-
-  if (socket && socket.connected) {
-    console.log(`Enviando notificación: ${type} de ${fromUserId} a ${toUserId}`);
-    socket.emit('notification:create', {
-      type,
-      content,
-      fromUserId,
-      toUserId
-    });
-    console.log('Notificación enviada al servidor');
-  } else {
-    console.warn('No se puede enviar notificación: socket no inicializado o desconectado');
-    console.log('Estado del socket:', socket ? (socket.connected ? 'conectado' : 'desconectado') : 'no inicializado');
-    
-    // Intentar reconectar si el socket existe pero está desconectado
-    if (socket && !socket.connected) {
-      console.log('Intentando reconectar para enviar notificación...');
-      socket.connect();
-      
-      // Esperar un momento y luego intentar enviar la notificación
-      setTimeout(() => {
-        if (socket && socket.connected) {
-          console.log(`Reintentando enviar notificación: ${type} de ${fromUserId} a ${toUserId}`);
-          socket.emit('notification:create', {
-            type,
-            content,
-            fromUserId,
-            toUserId
-          });
-          console.log('Notificación reenviada al servidor');
-        } else {
-          console.error('No se pudo reconectar para enviar la notificación');
-        }
-      }, 1000);
-    }
-  }
-};
-
-// Función para marcar una notificación como leída
 export const markNotificationAsRead = (notificationId: string): void => {
-  if (socket && socket.connected) {
-    console.log(`Marcando notificación como leída: ${notificationId}`);
-    socket.emit('notification:markAsRead', notificationId);
-  } else {
-    console.warn('No se puede marcar notificación como leída: socket no inicializado o desconectado');
-    
-    // Intentar reconectar si el socket existe pero está desconectado
-    if (socket && !socket.connected) {
-      console.log('Intentando reconectar para marcar notificación como leída...');
-      socket.connect();
-      
-      // Esperar un momento y luego intentar marcar la notificación
-      setTimeout(() => {
-        if (socket && socket.connected) {
-          console.log(`Reintentando marcar notificación como leída: ${notificationId}`);
-          socket.emit('notification:markAsRead', notificationId);
-        } else {
-          console.error('No se pudo reconectar para marcar la notificación como leída');
-        }
-      }, 1000);
-    }
+  if (!socket || !socket.connected) {
+    console.warn('[SOCKET] No se puede marcar notificación como leída, socket no conectado');
+    return;
   }
+  
+  console.log('[SOCKET] Marcando notificación como leída:', notificationId);
+  socket.emit('notification:markAsRead', notificationId);
 }; 
