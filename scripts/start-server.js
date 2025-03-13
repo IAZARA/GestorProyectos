@@ -58,28 +58,21 @@ function killProcess(pid) {
   });
 }
 
-// Función para iniciar los servidores
-function startServers() {
-  console.log(`${colors.green}Iniciando los servidores...${colors.reset}`);
+// Función para iniciar el servidor
+function startServer() {
+  console.log(`${colors.green}Iniciando el servidor...${colors.reset}`);
   
-  // Iniciar el servidor Next.js
-  console.log(`${colors.yellow}Iniciando el servidor Next.js...${colors.reset}`);
-  const nextProcess = spawn('npm', ['run', 'dev'], {
+  // Iniciar el servidor Next.js (que ya incluye WebSocket)
+  console.log(`${colors.yellow}Iniciando el servidor Next.js con WebSocket integrado...${colors.reset}`);
+  const nextProcess = spawn('node', ['server.js'], {
     stdio: 'inherit',
     shell: true
   });
   
-  // Iniciar el servidor WebSocket
-  console.log(`${colors.yellow}Iniciando el servidor WebSocket...${colors.reset}`);
-  const wsProcess = spawn('node', ['server.js'], {
-    stdio: 'inherit',
-    shell: true
-  });
+  console.log(`${colors.green}Servidor iniciado.${colors.reset}`);
+  console.log(`${colors.yellow}Presiona 'q' para detener el servidor${colors.reset}`);
   
-  console.log(`${colors.green}Servidores iniciados.${colors.reset}`);
-  console.log(`${colors.yellow}Presiona 'q' para detener los servidores${colors.reset}`);
-  
-  // Configurar la detección de teclas para detener los servidores
+  // Configurar la detección de teclas para detener el servidor
   readline.emitKeypressEvents(process.stdin);
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
@@ -87,45 +80,31 @@ function startServers() {
   
   process.stdin.on('keypress', (str, key) => {
     if (key.name === 'q' || (key.ctrl && key.name === 'c')) {
-      console.log(`${colors.red}Deteniendo servidores...${colors.reset}`);
+      console.log(`${colors.red}Deteniendo servidor...${colors.reset}`);
       nextProcess.kill();
-      wsProcess.kill();
       process.exit();
     }
   });
   
-  // Manejar la terminación de los procesos
+  // Manejar la terminación del proceso
   nextProcess.on('close', (code) => {
-    console.log(`${colors.red}El servidor Next.js se ha detenido con código ${code}${colors.reset}`);
-    wsProcess.kill();
-    process.exit();
-  });
-  
-  wsProcess.on('close', (code) => {
-    console.log(`${colors.red}El servidor WebSocket se ha detenido con código ${code}${colors.reset}`);
-    nextProcess.kill();
+    console.log(`${colors.red}El servidor se ha detenido con código ${code}${colors.reset}`);
     process.exit();
   });
 }
 
 // Función principal
 async function main() {
-  console.log(`${colors.yellow}Verificando si los puertos están en uso...${colors.reset}`);
+  console.log(`${colors.yellow}Verificando si el puerto está en uso...${colors.reset}`);
   
-  // Verificar puerto 3000 (Next.js)
+  // Verificar puerto 3000 (Next.js con WebSocket integrado)
   const nextPid = await checkPort(3000);
   if (nextPid) {
     await killProcess(nextPid);
   }
   
-  // Verificar puerto 3001 (WebSocket)
-  const wsPid = await checkPort(3001);
-  if (wsPid) {
-    await killProcess(wsPid);
-  }
-  
-  // Iniciar los servidores
-  startServers();
+  // Iniciar el servidor
+  startServer();
 }
 
 // Ejecutar la función principal

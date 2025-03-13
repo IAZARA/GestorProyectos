@@ -105,6 +105,58 @@ export const useProjectStore = create<ProjectState>()(
           projects: [...state.projects, newProject]
         }));
         
+        // Obtener el usuario actual
+        const currentUser = useUserStore.getState().currentUser;
+        if (currentUser) {
+          console.log(`[PROYECTO] Creando proyecto por usuario: ${currentUser.firstName} ${currentUser.lastName} (${currentUser.id})`);
+          
+          // Corregir el ID del creador si es necesario
+          let fromUserId = currentUser.id;
+          
+          // Corregir ID de Ivan Zarate si es necesario
+          if (currentUser.email === 'ivan.zarate@minseg.gob.ar' && fromUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+            console.log(`[PROYECTO] Corrigiendo ID de Ivan Zarate: ${fromUserId} -> 857af152-2fd5-4a4b-a8cb-468fc2681f5c`);
+            fromUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+          }
+          
+          // Corregir ID de Maxi Scarimbolo si es necesario
+          if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar' && fromUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
+            console.log(`[PROYECTO] Corrigiendo ID de Maxi Scarimbolo: ${fromUserId} -> e3fc93f9-9941-4840-ac2c-a30a7fcd322f`);
+            fromUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+          }
+          
+          // Notificar a todos los miembros del proyecto excepto al creador
+          if (newProject.members && Array.isArray(newProject.members)) {
+            newProject.members.forEach(memberId => {
+              // Corregir ID de miembro si es necesario
+              let toUserId = memberId;
+              
+              // Verificar si el miembro es Ivan Zarate y corregir su ID si es necesario
+              const memberUser = useUserStore.getState().getUserById(memberId);
+              if (memberUser && memberUser.email === 'ivan.zarate@minseg.gob.ar' && toUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+                console.log(`[PROYECTO] Corrigiendo ID de miembro Ivan Zarate: ${toUserId} -> 857af152-2fd5-4a4b-a8cb-468fc2681f5c`);
+                toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+              }
+              
+              // Verificar si el miembro es Maxi Scarimbolo y corregir su ID si es necesario
+              if (memberUser && memberUser.email === 'maxi.scarimbolo@minseg.gob.ar' && toUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
+                console.log(`[PROYECTO] Corrigiendo ID de miembro Maxi Scarimbolo: ${toUserId} -> e3fc93f9-9941-4840-ac2c-a30a7fcd322f`);
+                toUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+              }
+              
+              if (toUserId !== fromUserId) {
+                console.log(`[PROYECTO] Enviando notificación de nuevo proyecto a usuario ${toUserId}`);
+                sendNotification(
+                  'project_added',
+                  `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${newProject.name}"`,
+                  fromUserId,
+                  toUserId
+                );
+              }
+            });
+          }
+        }
+        
         return newProject;
       },
       

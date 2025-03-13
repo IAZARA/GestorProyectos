@@ -12,14 +12,23 @@ export default function DebugPage() {
   const [storeContent, setStoreContent] = useState('');
   const [localStorageContent, setLocalStorageContent] = useState('');
   const [testLoginResult, setTestLoginResult] = useState('');
+  const [usersInLocalStorage, setUsersInLocalStorage] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Obtener el contenido del localStorage
     try {
       const userStorage = localStorage.getItem('user-storage');
-      setLocalStorageContent(userStorage || 'No hay datos en localStorage');
+      if (userStorage) {
+        const parsedStorage = JSON.parse(userStorage);
+        if (parsedStorage.state && parsedStorage.state.users) {
+          setUsersInLocalStorage(parsedStorage.state.users);
+        }
+      }
     } catch (error) {
-      setLocalStorageContent('Error al leer localStorage: ' + error);
+      console.error('Error al cargar usuarios del localStorage:', error);
+    } finally {
+      setLoading(false);
     }
 
     // Obtener el contenido del store
@@ -179,6 +188,38 @@ export default function DebugPage() {
             {localStorageContent}
           </pre>
         </div>
+      </div>
+
+      <div className="mt-8 p-4 border rounded">
+        <h2 className="text-xl font-semibold mb-2">Usuarios en localStorage ({usersInLocalStorage.length})</h2>
+        {loading ? (
+          <p>Cargando usuarios...</p>
+        ) : (
+          <table className="min-w-full bg-white border border-gray-300">
+            <thead>
+              <tr>
+                <th className="py-2 px-4 border-b">ID</th>
+                <th className="py-2 px-4 border-b">Nombre</th>
+                <th className="py-2 px-4 border-b">Apellido</th>
+                <th className="py-2 px-4 border-b">Email</th>
+                <th className="py-2 px-4 border-b">Rol</th>
+                <th className="py-2 px-4 border-b">Especialidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersInLocalStorage.map((user) => (
+                <tr key={user.id}>
+                  <td className="py-2 px-4 border-b">{user.id}</td>
+                  <td className="py-2 px-4 border-b">{user.firstName}</td>
+                  <td className="py-2 px-4 border-b">{user.lastName}</td>
+                  <td className="py-2 px-4 border-b">{user.email}</td>
+                  <td className="py-2 px-4 border-b">{user.role}</td>
+                  <td className="py-2 px-4 border-b">{user.expertise}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

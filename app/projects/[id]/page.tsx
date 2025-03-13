@@ -17,39 +17,69 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { projects, getProjectById, updateProject, currentProject, setCurrentProject } = useProjectStore();
+  const { users, getUserById, currentUser } = useUserStore();
+  
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  
+  const [isLoading, setIsLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Obtener el ID del proyecto de los parámetros
   const projectId = params.id as string;
-  const { getProjectById, updateProject } = useProjectStore();
-  const { users, currentUser, getUserById } = useUserStore();
   
-  const project = getProjectById(projectId);
-  
-  // Verificar si el usuario actual es administrador, gestor o creador del proyecto
-  const canManageMembers = 
-    currentUser?.role === 'Administrador' || 
-    currentUser?.role === 'Gestor' || 
-    (project && project.createdBy === currentUser?.id);
-  
-  // Verificar si el usuario actual puede eliminar el proyecto
-  const canDeleteProject = 
-    currentUser?.role === 'Administrador' || 
-    (project && project.createdBy === currentUser?.id);
-  
+  // Verificar la autenticación y recuperar la sesión si es necesario
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
+    const checkAuthAndLoadProject = async () => {
+      // Si el usuario no está autenticado y la sesión está cargando, esperar
+      if (!currentUser && status === 'loading') {
+        return;
+      }
+      
+      // Si el usuario no está autenticado y la sesión no está cargando, intentar recuperar
+      if (!currentUser && status === 'unauthenticated') {
+        console.log('No hay sesión activa, intentando recuperar desde localStorage...');
+        
+        // Verificar si este proyecto fue creado recientemente
+        const lastCreatedProject = localStorage.getItem('last_created_project');
+        
+        if (lastCreatedProject === projectId) {
+          console.log('Este proyecto fue creado recientemente, redirigiendo a login...');
+          // Guardar la URL actual para redirigir después del login
+          localStorage.setItem('redirectAfterLogin', window.location.pathname);
+          router.push('/login');
+          return;
+        }
+        
+        // Si no hay sesión y no es un proyecto recién creado, redirigir al login
+        router.push('/login');
+        return;
+      }
+      
+      // Si llegamos aquí, el usuario está autenticado
+      setAuthChecked(true);
+      
+      // Cargar el proyecto
+      const project = getProjectById(projectId);
+      
+      if (project) {
+        setCurrentProject(projectId);
+        
+        // Inicializar los usuarios seleccionados con los miembros actuales del proyecto
+        setSelectedUsers(project.members);
+        setIsLoading(false);
+      } else {
+        // Si el proyecto no existe, redirigir a la lista de proyectos
+        console.error(`Proyecto con ID ${projectId} no encontrado`);
+        router.push('/projects');
+      }
+    };
     
-    // Inicializar los usuarios seleccionados con los miembros actuales del proyecto
-    if (project) {
-      setSelectedUsers(project.members);
-    }
-  }, [status, router, project]);
+    checkAuthAndLoadProject();
+  }, [projectId, currentUser, status, router, getProjectById, setCurrentProject]);
   
   if (status === 'loading') {
     return (
@@ -59,7 +89,7 @@ export default function ProjectDetailPage() {
     );
   }
   
-  if (!project) {
+  if (!currentProject) {
     return (
       <div className="flex min-h-screen items-center justify-center flex-col">
         <p className="text-lg mb-4">Proyecto no encontrado</p>
@@ -82,10 +112,10 @@ export default function ProjectDetailPage() {
   };
   
   const calculateDaysRemaining = () => {
-    if (!project.endDate) return 'Sin fecha límite';
+    if (!currentProject.endDate) return 'Sin fecha límite';
     
     const today = new Date();
-    const endDate = new Date(project.endDate);
+    const endDate = new Date(currentProject.endDate);
     const diffTime = endDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
@@ -95,10 +125,10 @@ export default function ProjectDetailPage() {
   };
   
   const calculateProgress = () => {
-    const totalTasks = project.tasks.length;
+    const totalTasks = currentProject.tasks.length;
     if (totalTasks === 0) return 0;
     
-    const completedTasks = project.tasks.filter(task => task.status === 'Completado').length;
+    const completedTasks = currentProject.tasks.filter(task => task.status === 'Completado').length;
     return Math.round((completedTasks / totalTasks) * 100);
   };
   
@@ -124,8 +154,8 @@ export default function ProjectDetailPage() {
   };
   
   const handleSaveMembers = () => {
-    if (project) {
-      updateProject(project.id, { members: selectedUsers });
+    if (currentProject) {
+      updateProject(currentProject.id, { members: selectedUsers });
       setShowMemberModal(false);
     }
   };
@@ -134,7 +164,7 @@ export default function ProjectDetailPage() {
     (user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
      user.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    user.id !== project.createdBy // No mostrar al creador del proyecto en la lista
+    user.id !== currentProject.createdBy // No mostrar al creador del proyecto en la lista
   );
   
   const renderTabContent = () => {
@@ -147,24 +177,24 @@ export default function ProjectDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Fecha de inicio</p>
-                  <p className="font-medium">{formatDate(project.startDate)}</p>
+                  <p className="font-medium">{formatDate(currentProject.startDate)}</p>
                 </div>
-                {project.endDate && (
+                {currentProject.endDate && (
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Fecha de finalización</p>
-                    <p className="font-medium">{formatDate(project.endDate)}</p>
+                    <p className="font-medium">{formatDate(currentProject.endDate)}</p>
                   </div>
                 )}
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Creado por</p>
                   <p className="font-medium">
-                    {getUserById(project.createdBy)?.firstName} {getUserById(project.createdBy)?.lastName}
+                    {getUserById(currentProject.createdBy)?.firstName} {getUserById(currentProject.createdBy)?.lastName}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Estado</p>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                    {project.status.replace('_', ' ')}
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentProject.status)}`}>
+                    {currentProject.status.replace('_', ' ')}
                   </span>
                 </div>
               </div>
@@ -190,13 +220,14 @@ export default function ProjectDetailPage() {
             
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-xl font-medium mb-4">Descripción</h3>
-              <p className="text-gray-700 whitespace-pre-line">{project.description}</p>
+              <p className="text-gray-700 whitespace-pre-line">{currentProject.description}</p>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-medium">Miembros del proyecto</h3>
-                {canManageMembers && (
+                {currentUser?.role === 'Administrador' || 
+                  (currentProject && currentProject.createdBy === currentUser?.id) && (
                   <button
                     onClick={() => setShowMemberModal(true)}
                     className="flex items-center text-blue-600 hover:text-blue-800"
@@ -207,9 +238,9 @@ export default function ProjectDetailPage() {
                 )}
               </div>
               
-              {project.members.length > 0 ? (
+              {currentProject.members.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {project.members.map(memberId => {
+                  {currentProject.members.map(memberId => {
                     const member = getUserById(memberId);
                     if (!member) return null;
                     
@@ -232,11 +263,11 @@ export default function ProjectDetailPage() {
                           <p className="font-medium">{member.firstName} {member.lastName}</p>
                           <p className="text-sm text-gray-500">{member.expertise}</p>
                         </div>
-                        {canManageMembers && memberId !== project.createdBy && (
+                        {currentUser?.role === 'Administrador' && memberId !== currentProject.createdBy && (
                           <button
                             onClick={() => {
-                              const updatedMembers = project.members.filter(id => id !== memberId);
-                              updateProject(project.id, { members: updatedMembers });
+                              const updatedMembers = currentProject.members.filter(id => id !== memberId);
+                              updateProject(currentProject.id, { members: updatedMembers });
                             }}
                             className="text-red-500 hover:text-red-700 p-1"
                             title="Eliminar miembro"
@@ -281,15 +312,15 @@ export default function ProjectDetailPage() {
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold">{project.name}</h1>
-              <p className="text-gray-500 mt-1">Creado el {formatDate(project.createdAt)}</p>
+              <h1 className="text-2xl md:text-3xl font-bold">{currentProject.name}</h1>
+              <p className="text-gray-500 mt-1">Creado el {formatDate(currentProject.createdAt)}</p>
             </div>
             <div className="mt-4 md:mt-0 flex items-center">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(project.status)}`}>
-                {project.status.replace('_', ' ')}
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentProject.status)}`}>
+                {currentProject.status.replace('_', ' ')}
               </span>
               
-              {canDeleteProject && (
+              {currentUser?.role === 'Administrador' && (
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   className="ml-4 flex items-center text-red-600 hover:text-red-800 px-3 py-1 rounded-md border border-red-200 hover:bg-red-50"
@@ -397,7 +428,7 @@ export default function ProjectDetailPage() {
                         className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center"
                       >
                         <span>{user.firstName} {user.lastName}</span>
-                        {userId !== project.createdBy && (
+                        {userId !== currentProject.createdBy && (
                           <button
                             onClick={() => handleToggleUser(userId)}
                             className="ml-1 text-blue-600 hover:text-blue-800"
@@ -479,8 +510,8 @@ export default function ProjectDetailPage() {
         
         {/* Modal para eliminar proyecto */}
         <DeleteProjectModal
-          projectId={project.id}
-          projectName={project.name}
+          projectId={currentProject.id}
+          projectName={currentProject.name}
           isOpen={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
         />

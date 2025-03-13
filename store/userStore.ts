@@ -25,7 +25,7 @@ interface UserState {
 // Crear algunos usuarios iniciales para demostración
 const initialUsers: User[] = [
   {
-    id: '1',
+    id: '857af152-2fd5-4a4b-a8cb-468fc2681f5c', // ID correcto de Ivan Zarate en la base de datos
     firstName: 'Ivan',
     lastName: 'Zarate',
     expertise: 'Administrativo',
@@ -35,13 +35,13 @@ const initialUsers: User[] = [
     password: bcrypt.hashSync('Vortex733-', 10)
   },
   {
-    id: '2',
-    firstName: 'Gestor',
-    lastName: 'Proyectos',
-    expertise: 'Tecnico',
+    id: 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f', // ID correcto de Maxi Scarimbolo en la base de datos
+    firstName: 'Maximiliano',
+    lastName: 'Scarimbolo',
+    expertise: 'Administrativo',
     role: 'Gestor',
-    photoUrl: 'https://i.pravatar.cc/300?img=2',
-    email: 'gestor@sistema.com',
+    photoUrl: '',
+    email: 'maxi.scarimbolo@minseg.gob.ar',
     password: bcrypt.hashSync('gestor123', 10)
   },
   {
@@ -78,6 +78,24 @@ const loadFromLocalStorage = (): { users: User[], currentUser: User | null } | n
     const savedState = getLocalStorage('user-storage');
     if (savedState) {
       console.log('Estado cargado desde localStorage:', savedState.users.length, 'usuarios');
+      
+      // Corregir el ID de Ivan Zarate si es necesario
+      if (savedState.users) {
+        savedState.users = savedState.users.map(user => {
+          if (user.email === 'ivan.zarate@minseg.gob.ar' && user.id !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+            console.log('Corrigiendo ID de Ivan Zarate en localStorage:', user.id, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+            return { ...user, id: '857af152-2fd5-4a4b-a8cb-468fc2681f5c' };
+          }
+          return user;
+        });
+        
+        // Corregir el currentUser si es Ivan Zarate
+        if (savedState.currentUser && savedState.currentUser.email === 'ivan.zarate@minseg.gob.ar' && savedState.currentUser.id !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+          console.log('Corrigiendo ID de Ivan Zarate en currentUser:', savedState.currentUser.id, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+          savedState.currentUser = { ...savedState.currentUser, id: '857af152-2fd5-4a4b-a8cb-468fc2681f5c' };
+        }
+      }
+      
       return savedState;
     }
     return null;
@@ -264,7 +282,24 @@ const useUserStore = create<UserState>()(
         },
         
         getUserById: (id) => {
-          return get().users.find(user => user.id === id);
+          // Primero intentar encontrar el usuario por ID exacto
+          const userById = get().users.find(user => user.id === id);
+          if (userById) return userById;
+          
+          // Si no se encuentra, verificar si es Ivan Zarate con ID incorrecto
+          if (id === 'b9e11de8-e612-4abd-b59d-ce3109a9820b') {
+            console.log('Buscando a Ivan Zarate con ID correcto en lugar de:', id);
+            return get().users.find(user => user.id === '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+          }
+          
+          // Verificar si es Maxi Scarimbolo con ID incorrecto
+          if (id === '2' || id === 'gestor') {
+            console.log('Buscando a Maxi Scarimbolo con ID correcto en lugar de:', id);
+            return get().users.find(user => user.id === 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+          }
+          
+          // Si no se encuentra ninguna coincidencia, devolver undefined
+          return undefined;
         },
         
         getUsersByRole: (role) => {

@@ -24,25 +24,60 @@ export default function NotificationCenter() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const currentUser = useUserStore(state => state.currentUser);
+  const [socketStatus, setSocketStatus] = useState<string>('Desconectado');
 
   useEffect(() => {
     if (currentUser) {
+      // Forzar el ID correcto para Ivan Zarate
+      let userId = currentUser.id;
+      if (currentUser.email === 'ivan.zarate@minseg.gob.ar' && userId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+        console.log('Corrigiendo ID de Ivan Zarate en NotificationCenter:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+        userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+      }
+      
       // Inicializar el socket cuando el usuario está autenticado
-      const socket = initializeSocket(currentUser.id);
+      const socket = initializeSocket(userId);
+      
+      console.log('NotificationCenter: Socket inicializado para usuario', userId);
+      setSocketStatus('Conectando...');
+
+      // Manejar la conexión
+      socket.on('connect', () => {
+        console.log('NotificationCenter: Socket conectado con ID:', socket.id);
+        setSocketStatus('Conectado');
+      });
+
+      // Manejar la desconexión
+      socket.on('disconnect', () => {
+        console.log('NotificationCenter: Socket desconectado');
+        setSocketStatus('Desconectado');
+      });
+
+      // Manejar errores
+      socket.on('connect_error', (error) => {
+        console.error('NotificationCenter: Error de conexión:', error);
+        setSocketStatus(`Error: ${error.message}`);
+      });
 
       // Escuchar notificaciones no leídas
       socket.on('notification:unread', (unreadNotifications: Notification[]) => {
-        setNotifications(prev => {
-          // Combinar con notificaciones existentes, evitando duplicados
-          const existingIds = new Set(prev.map(n => n.id));
-          const newNotifications = unreadNotifications.filter(n => !existingIds.has(n.id));
-          return [...newNotifications, ...prev];
-        });
-        setUnreadCount(unreadNotifications.length);
+        console.log('NotificationCenter: Recibidas notificaciones no leídas', unreadNotifications);
+        if (unreadNotifications && unreadNotifications.length > 0) {
+          setNotifications(prev => {
+            // Combinar con notificaciones existentes, evitando duplicados
+            const existingIds = new Set(prev.map(n => n.id));
+            const newNotifications = unreadNotifications.filter(n => !existingIds.has(n.id));
+            return [...newNotifications, ...prev];
+          });
+          setUnreadCount(unreadNotifications.length);
+        } else {
+          console.log('NotificationCenter: No hay notificaciones no leídas');
+        }
       });
 
       // Escuchar nuevas notificaciones
       socket.on('notification:new', (notification: Notification) => {
+        console.log('NotificationCenter: Nueva notificación recibida', notification);
         setNotifications(prev => [notification, ...prev]);
         setUnreadCount(prev => prev + 1);
         
@@ -58,13 +93,32 @@ export default function NotificationCenter() {
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();
       }
+      
+      // Forzar una solicitud de notificaciones no leídas
+      const requestNotifications = () => {
+        if (socket.connected) {
+          console.log('NotificationCenter: Solicitando notificaciones no leídas manualmente');
+          socket.emit('get:unreadNotifications');
+        } else {
+          console.log('NotificationCenter: No se pueden solicitar notificaciones, socket desconectado');
+        }
+      };
+      
+      // Solicitar notificaciones inmediatamente y luego cada 10 segundos
+      setTimeout(requestNotifications, 2000);
+      const intervalId = setInterval(requestNotifications, 10000);
 
       return () => {
         // Limpiar los listeners cuando el componente se desmonta
         const socket = getSocket();
         if (socket) {
+          console.log('NotificationCenter: Limpiando listeners de socket');
+          socket.off('connect');
+          socket.off('disconnect');
+          socket.off('connect_error');
           socket.off('notification:unread');
           socket.off('notification:new');
+          clearInterval(intervalId);
         }
       };
     }

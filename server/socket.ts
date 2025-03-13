@@ -35,6 +35,28 @@ export function initializeSocketServer(httpServer: HttpServer) {
       // Enviar notificaciones no leídas al usuario cuando se conecta
       sendUnreadNotifications(userId, socket);
     });
+    
+    // Manejar solicitud explícita de notificaciones no leídas
+    socket.on('get:unreadNotifications', () => {
+      // Encontrar el userId asociado con este socket
+      let userId: string | undefined;
+      
+      // Usar Array.from para convertir las entradas del mapa a un array
+      const entries = Array.from(userSocketMap.entries());
+      for (const [key, value] of entries) {
+        if (value === socket.id) {
+          userId = key;
+          break;
+        }
+      }
+      
+      if (userId) {
+        console.log(`Solicitud explícita de notificaciones no leídas para usuario ${userId}`);
+        sendUnreadNotifications(userId, socket);
+      } else {
+        console.warn('No se pudo identificar el usuario para la solicitud de notificaciones no leídas');
+      }
+    });
 
     // Manejar la creación de notificaciones
     socket.on('notification:create', async (payload: NotificationPayload) => {

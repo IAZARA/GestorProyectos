@@ -101,8 +101,14 @@ function ProjectsContent() {
       members: []
     });
     
-    // Redirigir al detalle del proyecto creado
-    router.push(`/projects/${createdProject.id}`);
+    // Añadir un pequeño retraso antes de redirigir para asegurar que la sesión se mantenga
+    setTimeout(() => {
+      // Guardar el ID del proyecto en localStorage para recuperarlo en caso de pérdida de sesión
+      localStorage.setItem('last_created_project', createdProject.id);
+      
+      // Redirigir al detalle del proyecto creado
+      router.push(`/projects/${createdProject.id}`);
+    }, 500); // Retraso de 500ms para asegurar que todo se sincronice correctamente
   };
   
   const formatDate = (date: Date) => {

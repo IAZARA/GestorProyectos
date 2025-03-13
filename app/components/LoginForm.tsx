@@ -38,10 +38,19 @@ export default function LoginForm() {
           console.log('Login exitoso con NextAuth');
         }
         
-        // Redirigir al dashboard con un pequeño retraso para asegurar que el store se actualice
+        // Verificar si hay una redirección pendiente
+        const redirectPath = localStorage.getItem('redirectAfterLogin');
+        
+        // Redirigir al dashboard o a la página guardada con un pequeño retraso
         setTimeout(() => {
-          console.log('Redirigiendo al dashboard...');
-          router.push('/dashboard');
+          if (redirectPath) {
+            console.log('Redirigiendo a:', redirectPath);
+            localStorage.removeItem('redirectAfterLogin'); // Limpiar después de usar
+            router.push(redirectPath);
+          } else {
+            console.log('Redirigiendo al dashboard...');
+            router.push('/dashboard');
+          }
         }, 800); // Aumentamos el tiempo de espera para asegurar que todo se sincronice
         
         return;
