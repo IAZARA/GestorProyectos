@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 
+// Indicar que esta es una ruta dinámica
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // Obtener el email de la URL
