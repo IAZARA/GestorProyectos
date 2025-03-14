@@ -15,39 +15,35 @@ async function sendTestNotification() {
     console.log('Usuario Ivan:', ivan ? `${ivan.firstName} ${ivan.lastName} (${ivan.id})` : 'No encontrado');
     console.log('Usuario Maxi:', maxi ? `${maxi.firstName} ${maxi.lastName} (${maxi.id})` : 'No encontrado');
 
-    // 2. Crear una notificación de prueba de Ivan a Maxi
-    console.log('Creando notificación de prueba de Ivan a Maxi...');
-    const testNotification = await prisma.notification.create({
+    // 2. Crear una notificación de prueba
+    console.log(`Creando notificación de prueba de Ivan a Maxi...`);
+    const notificacion = await prisma.notification.create({
       data: {
         type: 'test_notification',
-        content: 'Esta es una notificación de prueba URGENTE - ' + new Date().toLocaleTimeString(),
+        content: `Esta es una notificación de prueba URGENTE - ${new Date().toLocaleTimeString()}`,
         fromId: ivanId,
         toId: maxiId,
         isRead: false
       },
       include: {
-        from: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            photoUrl: true
-          }
-        }
+        from: true,
+        to: true
       }
     });
-    console.log(`Notificación de prueba creada con ID: ${testNotification.id}`);
+    console.log(`Notificación de prueba creada con ID: ${notificacion.id}`);
 
-    // 3. Verificar notificaciones para Maxi
-    const maxiNotifications = await prisma.notification.findMany({
+    // 3. Obtener las últimas notificaciones para Maxi
+    const notificaciones = await prisma.notification.findMany({
       where: { toId: maxiId },
-      include: { from: true },
       orderBy: { createdAt: 'desc' },
-      take: 5
+      take: 5,
+      include: {
+        from: true
+      }
     });
 
     console.log(`Últimas 5 notificaciones para Maxi:`);
-    maxiNotifications.forEach(n => {
+    notificaciones.forEach(n => {
       console.log(`- [${n.isRead ? 'Leída' : 'No leída'}] ${n.type}: ${n.content} (De: ${n.from?.firstName || 'Desconocido'})`);
     });
 

@@ -149,8 +149,8 @@ export const useProjectStore = create<ProjectState>()(
                 sendNotification({
                   type: 'project_added',
                   content: `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${newProject.name}"`,
-                  fromId: fromUserId,
-                  toId: toUserId
+                  fromUserId: currentUser.id,
+                  toUserId: toUserId
                 });
               }
             });
@@ -192,8 +192,8 @@ export const useProjectStore = create<ProjectState>()(
                 sendNotification({
                   type: 'wiki_edited',
                   content: `${currentUser.firstName} ${currentUser.lastName} ha editado la wiki del proyecto "${updatedProject.name}"`,
-                  fromId: currentUser.id,
-                  toId: memberId
+                  fromUserId: currentUser.id,
+                  toUserId: memberId
                 });
               }
             });
@@ -209,10 +209,10 @@ export const useProjectStore = create<ProjectState>()(
             if ((currentUser.role === 'Gestor' || currentUser.role === 'Administrador') && newMembers.length > 0) {
               newMembers.forEach(newMemberId => {
                 sendNotification({
-                  type: 'member_added',
-                  content: `${currentUser.firstName} ${currentUser.lastName} ha añadido a ${newMemberId} al proyecto "${updatedProject.name}"`,
-                  fromId: currentUser.id,
-                  toId: newMemberId
+                  type: 'project_member_added',
+                  content: `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${updatedProject.name}"`,
+                  fromUserId: currentUser.id,
+                  toUserId: newMemberId
                 });
               });
             }
@@ -225,8 +225,8 @@ export const useProjectStore = create<ProjectState>()(
                 sendNotification({
                   type: 'project_updated',
                   content: `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProject.name}"`,
-                  fromId: currentUser.id,
-                  toId: memberId
+                  fromUserId: currentUser.id,
+                  toUserId: memberId
                 });
               }
             });
@@ -293,8 +293,8 @@ export const useProjectStore = create<ProjectState>()(
             sendNotification({
               type: 'task_assigned',
               content: `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
-              fromId: currentUser.id,
-              toId: newTask.assignedTo
+              fromUserId: currentUser.id,
+              toUserId: newTask.assignedTo
             });
           }
         }
@@ -394,8 +394,8 @@ export const useProjectStore = create<ProjectState>()(
               sendNotification({
                 type: 'comment_added',
                 content: `${currentUser.firstName} ${currentUser.lastName} ha comentado en el proyecto "${project.name}"`,
-                fromId: currentUser.id,
-                toId: memberId
+                fromUserId: currentUser.id,
+                toUserId: memberId
               });
             }
           });

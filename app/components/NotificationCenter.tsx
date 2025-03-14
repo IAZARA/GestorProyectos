@@ -8,7 +8,8 @@ interface Notification {
   id: string;
   type: string;
   content: string;
-  fromId: string;
+  fromUserId?: string;
+  fromId?: string; // Para compatibilidad con versiones anteriores
   createdAt: Date;
   isRead: boolean;
   from?: {

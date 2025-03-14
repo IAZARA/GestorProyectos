@@ -20,9 +20,11 @@
     "start:postgres": "bash scripts/start-app.sh",
     "check:structure": "node scripts/check-project-structure.js",
     "clean:mongodb": "node scripts/clean-mongodb-references.js",
-    "start:all": "node scripts/start-app.js",
+    "start:all": "node scripts/start-all.js",
     "start:all:sh": "bash scripts/start.sh",
-    "start:all:win": "scripts\\start.bat"
+    "start:all:win": "scripts\\start.bat",
+    "test:notification": "node scripts/test-client-notification-node.js",
+    "test:notification:browser": "node scripts/serve-test-page.js"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

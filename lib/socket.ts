@@ -29,8 +29,23 @@ const processPendingNotifications = () => {
     recentNotifications.forEach(notification => {
       try {
         if (socket && socket.connected) {
-          console.log('[SOCKET] Enviando notificación pendiente:', notification);
-          socket.emit('notification:send', notification);
+          // Crear una copia para no modificar el objeto original
+          const adaptedNotification = { ...notification };
+          
+          // Convertir toUserId a toId si es necesario
+          if (adaptedNotification.toUserId && !adaptedNotification.toId) {
+            adaptedNotification.toId = adaptedNotification.toUserId;
+            delete adaptedNotification.toUserId;
+          }
+          
+          // Convertir fromUserId a fromId si es necesario
+          if (adaptedNotification.fromUserId && !adaptedNotification.fromId) {
+            adaptedNotification.fromId = adaptedNotification.fromUserId;
+            delete adaptedNotification.fromUserId;
+          }
+          
+          console.log('[SOCKET] Enviando notificación pendiente:', adaptedNotification);
+          socket.emit('notification:send', adaptedNotification);
           successCount++;
         }
       } catch (error) {
@@ -165,9 +180,25 @@ export const sendNotification = (notification: any): boolean => {
     return false;
   }
   
+  // Crear una copia para no modificar el objeto original
+  const adaptedNotification = { ...notification };
+  
+  // Convertir toUserId a toId si es necesario
+  if (adaptedNotification.toUserId && !adaptedNotification.toId) {
+    adaptedNotification.toId = adaptedNotification.toUserId;
+    delete adaptedNotification.toUserId;
+  }
+  
+  // Convertir fromUserId a fromId si es necesario
+  if (adaptedNotification.fromUserId && !adaptedNotification.fromId) {
+    adaptedNotification.fromId = adaptedNotification.fromUserId;
+    delete adaptedNotification.fromUserId;
+  }
+  
   // Verificar campos requeridos
-  if (!notification.type || !notification.content || !notification.toId) {
-    console.warn('[SOCKET] No se puede enviar notificación, faltan campos requeridos', notification);
+  if (!adaptedNotification.type || !adaptedNotification.content || 
+      (!adaptedNotification.toId && !adaptedNotification.toUserId)) {
+    console.warn('[SOCKET] No se puede enviar notificación, faltan campos requeridos', adaptedNotification);
     return false;
   }
   
@@ -178,7 +209,7 @@ export const sendNotification = (notification: any): boolean => {
     try {
       const pendingNotifications = JSON.parse(localStorage.getItem('pendingNotifications') || '[]');
       pendingNotifications.push({
-        ...notification,
+        ...adaptedNotification,
         timestamp: new Date().toISOString()
       });
       localStorage.setItem('pendingNotifications', JSON.stringify(pendingNotifications));
@@ -205,7 +236,7 @@ export const sendNotification = (notification: any): boolean => {
     try {
       const pendingNotifications = JSON.parse(localStorage.getItem('pendingNotifications') || '[]');
       pendingNotifications.push({
-        ...notification,
+        ...adaptedNotification,
         timestamp: new Date().toISOString()
       });
       localStorage.setItem('pendingNotifications', JSON.stringify(pendingNotifications));
@@ -218,8 +249,8 @@ export const sendNotification = (notification: any): boolean => {
   }
   
   try {
-    console.log('[SOCKET] Enviando notificación:', notification);
-    socket.emit('notification:send', notification);
+    console.log('[SOCKET] Enviando notificación:', adaptedNotification);
+    socket.emit('notification:send', adaptedNotification);
     return true;
   } catch (error) {
     console.error('[SOCKET] Error al enviar notificación:', error);

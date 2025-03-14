@@ -192,8 +192,8 @@ export const useAdminStore = create<AdminState>()(
               sendNotification({
                 type: 'document_uploaded',
                 content: `${currentUser.firstName} ${currentUser.lastName} ha subido un nuevo documento: "${newDocumento.titulo}"`,
-                fromId: currentUser.id,
-                toId: user.id
+                fromUserId: currentUser.id,
+                toUserId: user.id
               });
             }
           });

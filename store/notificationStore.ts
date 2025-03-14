@@ -121,12 +121,7 @@ export const useNotificationStore = create<NotificationState>()(
         }));
         
         // Enviar la notificación a través del socket
-        sendNotification({
-          type: notification.type,
-          content: notification.content,
-          fromId: newNotification.fromId,
-          toId: newNotification.toId
-        });
+        sendNotification(newNotification);
         
         // Guardar en la base de datos
         if (typeof window !== 'undefined') {

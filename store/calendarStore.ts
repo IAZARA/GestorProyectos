@@ -158,8 +158,8 @@ export const useCalendarStore = create<CalendarState>()(
                       safeNotify({
                         type: 'event_added',
                         content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
-                        fromId: currentUser.id,
-                        toId: correctedMemberId
+                        fromUserId: currentUser.id,
+                        toUserId: correctedMemberId
                       });
                     }
                   });
@@ -178,8 +178,8 @@ export const useCalendarStore = create<CalendarState>()(
                   safeNotify({
                     type: 'event_added',
                     content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
-                    fromId: currentUser.id,
-                    toId: correctedUserId
+                    fromUserId: currentUser.id,
+                    toUserId: correctedUserId
                   });
                 }
               });

@@ -111,47 +111,62 @@ io.on('connection', async (socket) => {
     try {
       console.log('[SOCKET-SERVER] Solicitud para enviar notificación:', notificationData);
       
+      // Adaptar campos si es necesario
+      const adaptedData = { ...notificationData };
+      
+      // Convertir toUserId a toId si es necesario
+      if (adaptedData.toUserId && !adaptedData.toId) {
+        adaptedData.toId = adaptedData.toUserId;
+        delete adaptedData.toUserId;
+      }
+      
+      // Convertir fromUserId a fromId si es necesario
+      if (adaptedData.fromUserId && !adaptedData.fromId) {
+        adaptedData.fromId = adaptedData.fromUserId;
+        delete adaptedData.fromUserId;
+      }
+      
       // Verificar datos mínimos requeridos
-      if (!notificationData.type || !notificationData.content || !notificationData.toUserId) {
+      if (!adaptedData.type || !adaptedData.content || !adaptedData.toId) {
         console.error('[SOCKET-SERVER] Datos de notificación incompletos');
         return;
       }
       
       // Usar el ID del socket como remitente si no se proporciona
-      const fromUserId = notificationData.fromUserId || socket.userId;
+      const fromId = adaptedData.fromId || socket.userId;
       
       // Corregir ID para Ivan Zarate si es necesario
-      let toUserId = notificationData.toUserId;
-      if (toUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c' && 
-          (toUserId.includes('ivan') || toUserId.includes('zarate'))) {
-        console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Ivan Zarate):', toUserId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
-        toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+      let toId = adaptedData.toId;
+      if (toId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c' && 
+          (toId.includes('ivan') || toId.includes('zarate'))) {
+        console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Ivan Zarate):', toId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+        toId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
       }
       
       // Corregir ID para Maxi Scarimbolo si es necesario
-      if (toUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f' && 
-          (toUserId.includes('maxi') || toUserId.includes('scarimbolo'))) {
-        console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Maxi Scarimbolo):', toUserId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
-        toUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+      if (toId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f' && 
+          (toId.includes('maxi') || toId.includes('scarimbolo'))) {
+        console.log('[SOCKET-SERVER] Corrigiendo ID de destinatario (Maxi Scarimbolo):', toId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+        toId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
       }
       
       // Verificar que el destinatario existe
       const toUser = await prisma.user.findUnique({
-        where: { id: toUserId }
+        where: { id: toId }
       });
       
       if (!toUser) {
-        console.error(`[SOCKET-SERVER] Usuario destinatario no encontrado: ${toUserId}`);
+        console.error(`[SOCKET-SERVER] Usuario destinatario no encontrado: ${toId}`);
         return;
       }
       
       // Crear la notificación en la base de datos
       const notification = await prisma.notification.create({
         data: {
-          type: notificationData.type,
-          content: notificationData.content,
-          from: { connect: { id: fromUserId } },
-          to: { connect: { id: toUserId } },
+          type: adaptedData.type,
+          content: adaptedData.content,
+          from: { connect: { id: fromId } },
+          to: { connect: { id: toId } },
           isRead: false
         },
         include: {
@@ -166,15 +181,15 @@ io.on('connection', async (socket) => {
         }
       });
       
-      console.log(`[SOCKET-SERVER] Notificación creada: ${notification.id} para usuario ${toUserId}`);
+      console.log(`[SOCKET-SERVER] Notificación creada: ${notification.id} para usuario ${toId}`);
       
       // Enviar la notificación al destinatario si está conectado
-      const recipientSocketId = userSockets.get(toUserId);
+      const recipientSocketId = userSockets.get(toId);
       if (recipientSocketId) {
         console.log(`[SOCKET-SERVER] Enviando notificación a socket: ${recipientSocketId}`);
         io.to(recipientSocketId).emit('notification:new', notification);
       } else {
-        console.log(`[SOCKET-SERVER] Usuario ${toUserId} no está conectado, la notificación se entregará cuando se conecte`);
+        console.log(`[SOCKET-SERVER] Usuario ${toId} no está conectado, la notificación se entregará cuando se conecte`);
       }
       
     } catch (error) {
