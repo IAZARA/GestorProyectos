@@ -19,7 +19,10 @@
     "migrate": "node scripts/run-migrations.js",
     "start:postgres": "bash scripts/start-app.sh",
     "check:structure": "node scripts/check-project-structure.js",
-    "clean:mongodb": "node scripts/clean-mongodb-references.js"
+    "clean:mongodb": "node scripts/clean-mongodb-references.js",
+    "start:all": "node scripts/start-app.js",
+    "start:all:sh": "bash scripts/start.sh",
+    "start:all:win": "scripts\\start.bat"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
