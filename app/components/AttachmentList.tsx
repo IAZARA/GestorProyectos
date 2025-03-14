@@ -93,24 +93,26 @@ export default function AttachmentList({ projectId, taskId, onDelete }: Attachme
 
   const handleDownload = async (attachmentId: string, originalName: string) => {
     try {
-      const response = await fetch(`/api/attachments/${attachmentId}/download`);
+      // Mostrar un indicador de carga durante la descarga
+      const downloadingAttachment = attachmentId;
+      setDeleting(downloadingAttachment); // Reutilizamos el estado de deleting como indicador de carga
       
-      if (!response.ok) {
-        throw new Error('Error al descargar el archivo');
-      }
+      // Crear una URL directa al endpoint de descarga
+      const downloadUrl = `/api/attachments/${attachmentId}/download`;
+      console.log(`Intentando descargar: ${downloadUrl}`);
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = originalName;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Abrir la URL en una nueva pestaña para forzar la descarga
+      // Esto evita problemas con el manejo de blobs en el navegador
+      window.open(downloadUrl, '_blank');
+      
+      // Esperar un momento y luego quitar el indicador de carga
+      setTimeout(() => {
+        setDeleting(null);
+      }, 1000);
     } catch (error) {
       console.error('Error al descargar el archivo:', error);
       setError('Error al descargar el archivo');
+      setDeleting(null);
     }
   };
 

@@ -81,6 +81,44 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
+ * @route GET /api/users/by-email/:email
+ * @desc Obtener un usuario por su correo electrónico
+ * @access Private
+ */
+router.get('/by-email/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    console.log(`Buscando usuario con email: ${email}`);
+    
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        expertise: true,
+        photoUrl: true,
+        password: true
+      }
+    });
+    
+    if (!user) {
+      console.log(`Usuario no encontrado: ${email}`);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    
+    console.log(`Usuario encontrado: ${user.firstName} ${user.lastName}`);
+    res.json(user);
+  } catch (error) {
+    console.error('Error al obtener usuario por email:', error);
+    res.status(500).json({ error: 'Error al obtener usuario' });
+  }
+});
+
+/**
  * @route POST /api/users
  * @desc Crear un nuevo usuario
  * @access Private

@@ -1,15 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProjectStore } from '../../store/projectStore';
 import { useUserStore } from '../../store/userStore';
 import { Project } from '../../types/project';
 import { Calendar as CalendarIcon, Users, Clock, ArrowUpRight, BarChart3, FileText, Briefcase, Plus, Lock, AlertCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
+import { fetchProjects } from '../../lib/projectApi';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { projects } = useProjectStore();
   const { users, currentUser, getUserById } = useUserStore();
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -17,6 +16,7 @@ export default function DashboardPage() {
   const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [greeting, setGreeting] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Determinar el saludo según la hora del día
   useEffect(() => {
@@ -30,28 +30,36 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Cargar proyectos
+  // Cargar proyectos directamente desde la API
   useEffect(() => {
-    if (currentUser) {
-      // Proyectos donde el usuario es miembro o creador
-      const filteredProjects = projects.filter(project => 
-        project.members.includes(currentUser.id) || project.createdBy === currentUser.id
-      );
-      
-      setUserProjects(filteredProjects);
-      
-      // Todos los proyectos (para mostrar en el dashboard)
-      setAllProjects(projects);
-      
-      // Contar tareas pendientes asignadas al usuario
-      const tasks = filteredProjects.flatMap(project => project.tasks);
-      const userPendingTasks = tasks.filter(task => 
-        task.assignedTo === currentUser.id && task.status !== 'Completado'
-      );
-      
-      setPendingTasks(userPendingTasks.length);
-    }
-  }, [currentUser, projects]);
+    const loadProjects = async () => {
+      if (currentUser) {
+        setIsLoading(true);
+        try {
+          // Cargar proyectos del usuario desde la API
+          const projectsData = await fetchProjects(currentUser.id);
+          
+          // Actualizar el estado
+          setUserProjects(projectsData);
+          setAllProjects(projectsData);
+          
+          // Contar tareas pendientes asignadas al usuario
+          const tasks = projectsData.flatMap(project => project.tasks || []);
+          const userPendingTasks = tasks.filter(task => 
+            task.assignedTo === currentUser.id && task.status !== 'Completado'
+          );
+          
+          setPendingTasks(userPendingTasks.length);
+        } catch (error) {
+          console.error('Error al cargar proyectos:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadProjects();
+  }, [currentUser]);
 
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString('es-ES', {

@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const userRoutes = require('./api-users');
+const projectRoutes = require('./api-projects');
 const { router: authRoutes, verifyToken } = require('./api-auth');
 
 // Inicializar Prisma
@@ -29,6 +30,7 @@ app.use((req, res, next) => {
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/users', verifyToken, userRoutes); // Proteger rutas de usuarios
+app.use('/api/projects', verifyToken, projectRoutes); // Proteger rutas de proyectos
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {

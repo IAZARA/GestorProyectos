@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
+import { writeFile, mkdir } from 'fs/promises';
+import { join, dirname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+
+// Inicializar Prisma
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const projectId = formData.get('projectId') as string;
+    const userId = formData.get('userId') as string;
     
     if (!file) {
       return NextResponse.json(
@@ -15,10 +22,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Verificar que sea una imagen
-    if (!file.type.startsWith('image/')) {
+    if (!projectId || !userId) {
       return NextResponse.json(
-        { error: 'El archivo debe ser una imagen' },
+        { error: 'Se requiere projectId y userId' },
         { status: 400 }
       );
     }
@@ -33,20 +39,57 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     
+    // Definir el directorio de carga
+    const uploadDir = process.env.UPLOAD_DIR || 'uploads';
+    const absoluteUploadDir = join(process.cwd(), uploadDir);
+    
+    // Asegurarse de que el directorio exista
+    if (!fs.existsSync(absoluteUploadDir)) {
+      await mkdir(absoluteUploadDir, { recursive: true });
+      console.log(`Directorio de carga creado: ${absoluteUploadDir}`);
+    }
+    
     // Guardar el archivo en el servidor
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    const filePath = join(uploadDir, fileName);
+    const filePath = join(absoluteUploadDir, fileName);
     await writeFile(filePath, buffer);
+    console.log(`Archivo guardado en: ${filePath}`);
     
-    // Devolver la URL del archivo
-    const fileUrl = `/uploads/${fileName}`;
+    // Guardar la información del archivo en la base de datos PostgreSQL
+    const attachment = await prisma.attachment.create({
+      data: {
+        fileName: fileName,
+        originalName: file.name,
+        mimeType: file.type,
+        size: file.size,
+        path: filePath,
+        project: {
+          connect: { id: projectId }
+        },
+        user: {
+          connect: { id: userId }
+        }
+      }
+    });
     
-    return NextResponse.json({ url: fileUrl });
+    console.log(`Attachment guardado en la base de datos: ${JSON.stringify(attachment)}`);
+    
+    // Devolver la información del archivo
+    return NextResponse.json({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      path: attachment.path,
+      url: `/api/attachments/${attachment.id}/download`
+    });
   } catch (error) {
     console.error('Error al subir el archivo:', error);
     return NextResponse.json(
-      { error: 'Error al procesar el archivo' },
+      { error: 'Error al procesar el archivo', details: error.message },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
-} 
+}

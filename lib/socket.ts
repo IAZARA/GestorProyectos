@@ -129,9 +129,9 @@ export const initializeSocket = (userId: string): Socket => {
   // Crear un nuevo socket
   console.log('[SOCKET] Creando nuevo socket para usuario:', correctedUserId);
   
-  // Conectar al servidor WebSocket independiente en el puerto 3001
+  // Conectar al servidor WebSocket independiente en el puerto 3000
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const socketUrl = `http://${host}:3001`;
+  const socketUrl = `http://${host}:3000`;
   console.log('[SOCKET] Conectando a:', socketUrl);
   
   socket = io(socketUrl, {

@@ -2,9 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUserStore } from '../../store/userStore';
-import { LogOut, User, ChevronDown, Settings } from 'lucide-react';
+import { LogOut, User, ChevronDown, Settings, Menu, X } from 'lucide-react';
 import Image from 'next/image';
 import NotificationCenter from './NotificationCenter';
+import Link from 'next/link';
 
 export default function Navbar() {
   const router = useRouter();
@@ -12,7 +13,9 @@ export default function Navbar() {
   const { currentUser, logout } = useUserStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   // Este efecto se ejecuta solo en el cliente después de la hidratación
   useEffect(() => {
@@ -22,6 +25,9 @@ export default function Navbar() {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
       }
     };
     
@@ -49,6 +55,12 @@ export default function Navbar() {
   const handleProfileClick = () => {
     router.push('/profile');
     setShowUserMenu(false);
+    setMobileMenuOpen(false);
+  };
+
+  const handleNavigation = (path: string) => {
+    router.push(path);
+    setMobileMenuOpen(false);
   };
 
   // No mostrar la barra de navegación en la página de login
@@ -75,10 +87,19 @@ export default function Navbar() {
     return <div className="bg-[#2d2c55] shadow-sm h-16"></div>;
   }
 
+  // Enlaces de navegación principales
+  const navLinks = [
+    { name: 'Dashboard', path: '/dashboard', active: pathname === '/dashboard' },
+    { name: 'Proyectos', path: '/projects', active: pathname?.startsWith('/projects') || false },
+    { name: 'Calendario', path: '/calendar', active: pathname === '/calendar' },
+    { name: 'Tareas', path: '/tasks', active: pathname === '/tasks' },
+  ];
+
   return (
     <nav className="bg-[#2d2c55] shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
+          {/* Logo y título - visible en todos los tamaños */}
           <div className="flex items-center">
             <button
               onClick={() => router.push('/dashboard')}
@@ -93,14 +114,35 @@ export default function Navbar() {
                   style={{ objectFit: 'contain' }}
                 />
               </div>
-              <span className="font-medium text-sm md:text-base">
-                Dirección Nacional de Gestión de Bases de Datos de Seguridad
+              <span className="font-medium text-sm md:text-base hidden sm:inline">
+                Dirección Nacional de Gestión de Bases de Datos
+              </span>
+              <span className="font-medium text-sm sm:hidden">
+                DNGBD
               </span>
             </button>
           </div>
 
+          {/* Enlaces de navegación - solo visibles en pantallas medianas y grandes */}
+          <div className="hidden md:flex md:items-center md:space-x-4">
+            {navLinks.map((link) => (
+              <button
+                key={link.name}
+                onClick={() => handleNavigation(link.path)}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  link.active 
+                    ? 'bg-[#3d3c75] text-white' 
+                    : 'text-gray-300 hover:bg-[#3d3c75] hover:text-white'
+                }`}
+              >
+                {link.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Perfil de usuario y notificaciones */}
           <div className="flex items-center">
-            <div className="mr-4">
+            <div className="mr-2 md:mr-4">
               <NotificationCenter />
             </div>
             
@@ -165,7 +207,43 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+
+            {/* Botón de menú móvil - solo visible en pantallas pequeñas */}
+            <div className="ml-2 md:hidden">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-white hover:text-white hover:bg-[#3d3c75] focus:outline-none"
+              >
+                {mobileMenuOpen ? (
+                  <X className="block h-6 w-6" aria-hidden="true" />
+                ) : (
+                  <Menu className="block h-6 w-6" aria-hidden="true" />
+                )}
+              </button>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Menú móvil - solo visible cuando está abierto en pantallas pequeñas */}
+      <div 
+        ref={mobileMenuRef}
+        className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}
+      >
+        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-[#2d2c55] border-t border-[#3d3c75]">
+          {navLinks.map((link) => (
+            <button
+              key={link.name}
+              onClick={() => handleNavigation(link.path)}
+              className={`block px-3 py-2 rounded-md text-base font-medium w-full text-left ${
+                link.active 
+                  ? 'bg-[#3d3c75] text-white' 
+                  : 'text-gray-300 hover:bg-[#3d3c75] hover:text-white'
+              }`}
+            >
+              {link.name}
+            </button>
+          ))}
         </div>
       </div>
     </nav>

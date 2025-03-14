@@ -268,9 +268,19 @@ const useUserStore = create<UserState>()((set, get) => {
     getUserById: async (id) => {
       try {
         // Primero intentar encontrar el usuario en el estado local
-        const userInState = get().users.find(user => user.id === id);
+        const userInState = get().users.find(user => user.id === id || user.email === id);
         if (userInState) {
           return userInState;
+        }
+        
+        // Si no hay usuarios en el estado, intentar obtenerlos primero
+        if (get().users.length === 0) {
+          await get().fetchUsers();
+          // Verificar nuevamente después de obtener los usuarios
+          const userAfterFetch = get().users.find(user => user.id === id || user.email === id);
+          if (userAfterFetch) {
+            return userAfterFetch;
+          }
         }
         
         // Obtener el token de autenticación
@@ -280,27 +290,49 @@ const useUserStore = create<UserState>()((set, get) => {
           throw new Error('No hay token de autenticación');
         }
         
+        // Determinar si el ID parece ser un correo electrónico
+        const isEmail = id.includes('@');
+        const endpoint = isEmail 
+          ? `${API_BASE_URL}/api/users/by-email/${encodeURIComponent(id)}`
+          : `${API_BASE_URL}/api/users/${id}`;
+        
         // Si no se encuentra, obtenerlo de la API
-        const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+        const response = await fetch(endpoint, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         
         if (!response.ok) {
-          throw new Error('Usuario no encontrado');
+          console.error(`Usuario no encontrado: ${id}`);
+          return undefined;
         }
         
         const user = await response.json();
         
         // Actualizar el estado local con el usuario obtenido
         set((state) => ({
-          users: [...state.users.filter(u => u.id !== id), user]
+          users: [...state.users.filter(u => u.id !== user.id && u.email !== user.email), user]
         }));
         
         return user;
       } catch (error) {
         console.error('Error al obtener usuario por ID:', error);
+        // En caso de error, devolver un objeto de usuario temporal para evitar errores en la UI
+        if (id.includes('@')) {
+          // Si parece ser un correo electrónico, crear un usuario temporal con ese correo
+          const tempUser = {
+            id: 'temp-' + Date.now(),
+            email: id,
+            firstName: id.split('@')[0],
+            lastName: '',
+            role: 'Usuario' as Role,
+            expertise: 'General' as Expertise,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          return tempUser;
+        }
         return undefined;
       }
     },

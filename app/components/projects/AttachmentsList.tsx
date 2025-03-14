@@ -24,30 +24,57 @@ export default function AttachmentsList({ projectId }: AttachmentsListProps) {
     
     setIsUploading(true);
     
-    // Simulamos la carga de archivos (en una aplicación real, esto subiría los archivos a un servidor)
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    try {
+      // Obtener la URL base de la API
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
       
-      // Crear un objeto de adjunto simulado
-      const attachment = {
-        fileName: `file-${Date.now()}-${i}`,
-        originalName: file.name,
-        mimeType: file.type,
-        size: file.size,
-        path: URL.createObjectURL(file), // En una app real, esta sería la URL del servidor
-        userId: currentUser.id,
-        projectId
-      };
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Crear un FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('projectId', projectId);
+        formData.append('userId', currentUser.id);
+        
+        // Enviar el archivo al servidor
+        const response = await fetch(`${API_BASE_URL}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error al subir el archivo: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Crear un objeto de adjunto con los datos devueltos por el servidor
+        const attachment = {
+          id: data.id || `temp-${Date.now()}-${i}`,
+          fileName: data.fileName || `file-${Date.now()}-${i}`,
+          originalName: file.name,
+          mimeType: file.type,
+          size: file.size,
+          path: data.path || data.url || URL.createObjectURL(file),
+          userId: currentUser.id,
+          projectId
+        };
+        
+        // Añadir el adjunto al proyecto
+        addAttachment(projectId, attachment);
+        console.log(`Archivo subido exitosamente: ${attachment.originalName}`);
+      }
+    } catch (error) {
+      console.error('Error al subir los archivos:', error);
+      alert('Error al subir los archivos. Por favor, inténtelo de nuevo.');
+    } finally {
+      setIsUploading(false);
       
-      // Añadir el adjunto al proyecto
-      addAttachment(projectId, attachment);
-    }
-    
-    setIsUploading(false);
-    
-    // Limpiar el input de archivos
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      // Limpiar el input de archivos
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
   
@@ -103,14 +130,45 @@ export default function AttachmentsList({ projectId }: AttachmentsListProps) {
                 {getFileIcon(attachment.mimeType)}
               </div>
               <div className="flex-1 min-w-0">
-                <a 
-                  href={attachment.path} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="font-medium text-blue-600 hover:underline block truncate"
+                <button 
+                  onClick={() => {
+                    try {
+                      // Construir la URL con el puerto correcto (3005 para la API)
+                      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
+                      
+                      // Usar la API de descarga para archivos reales
+                      if (attachment.id) {
+                        const downloadUrl = `${API_BASE_URL}/api/attachments/${attachment.id}/download`;
+                        console.log(`Intentando descargar archivo: ${attachment.originalName} (ID: ${attachment.id})`);
+                        console.log(`URL de descarga: ${downloadUrl}`);
+                        
+                        // Verificar si el archivo existe antes de abrir una nueva pestaña
+                        fetch(downloadUrl, { method: 'HEAD' })
+                          .then(response => {
+                            if (response.ok) {
+                              window.open(downloadUrl, '_blank');
+                            } else {
+                              console.error(`Error al verificar el archivo: ${response.status} ${response.statusText}`);
+                              alert(`No se pudo descargar el archivo "${attachment.originalName}". Por favor, inténtelo de nuevo más tarde.`);
+                            }
+                          })
+                          .catch(error => {
+                            console.error('Error al verificar el archivo:', error);
+                            alert(`Error al descargar el archivo. Por favor, inténtelo de nuevo más tarde.`);
+                          });
+                      } else {
+                        // Fallback para archivos simulados (solo en desarrollo)
+                        window.open(attachment.path, '_blank');
+                      }
+                    } catch (error) {
+                      console.error('Error al iniciar la descarga:', error);
+                      alert('Ocurrió un error al intentar descargar el archivo.');
+                    }
+                  }}
+                  className="font-medium text-blue-600 hover:underline block truncate text-left"
                 >
                   {attachment.originalName}
-                </a>
+                </button>
                 <p className="text-sm text-gray-500">
                   {(attachment.size / 1024).toFixed(2)} KB
                 </p>
