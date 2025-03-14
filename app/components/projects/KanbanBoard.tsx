@@ -160,9 +160,9 @@ export default function KanbanBoard({ projectId }: KanbanBoardProps) {
                         className="w-full p-2 border rounded bg-white"
                       >
                         <option value="">Sin asignar</option>
-                        {users.map(user => (
-                          <option key={user.id} value={user.id}>
-                            {user.firstName} {user.lastName}
+                        {users.map(user => user && (
+                          <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                            {user?.firstName || ''} {user?.lastName || ''}
                           </option>
                         ))}
                       </select>
@@ -257,9 +257,9 @@ export default function KanbanBoard({ projectId }: KanbanBoardProps) {
                   className="w-full p-2 border rounded mb-2"
                 >
                   <option value="">Sin asignar</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.firstName} {user.lastName}
+                  {users.map(user => user && (
+                    <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                      {user?.firstName || ''} {user?.lastName || ''}
                     </option>
                   ))}
                 </select>

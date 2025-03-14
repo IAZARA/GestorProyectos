@@ -209,9 +209,9 @@ export default function LicenciaModal({ isOpen, onClose, editingItem }: Licencia
                   disabled={!!editingItem}
                 >
                   <option value="">Seleccione un usuario</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.lastName}, {user.firstName}
+                  {users.map(user => user && (
+                    <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                      {user?.lastName || ''}, {user?.firstName || ''}
                     </option>
                   ))}
                 </select>

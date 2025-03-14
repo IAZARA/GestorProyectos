@@ -143,9 +143,9 @@ export default function PersonalModal({ isOpen, onClose, editingItem }: Personal
                 disabled={!!editingItem}
               >
                 <option value="">Seleccione un usuario</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.firstName} {user.lastName} ({user.email})
+                {users.map(user => user && (
+                  <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                    {user?.firstName || ''} {user?.lastName || ''} ({user?.email || ''})
                   </option>
                 ))}
               </select>

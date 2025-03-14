@@ -30,7 +30,7 @@ function ProjectsContent() {
   
   // Verificar si se debe mostrar el modal de creación basado en el parámetro de URL
   useEffect(() => {
-    const shouldShowCreateModal = searchParams.get('create') === 'true';
+    const shouldShowCreateModal = searchParams?.get('create') === 'true';
     if (shouldShowCreateModal && (currentUser?.role === 'Administrador' || currentUser?.role === 'Gestor')) {
       setShowCreateModal(true);
       
@@ -379,10 +379,10 @@ function ProjectsContent() {
                     size={4}
                   >
                     {users
-                      .filter(user => user.id !== currentUser.id) // Excluir al usuario actual
-                      .map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName} ({user.role})
+                      .filter(user => user && user.id !== currentUser?.id) // Excluir al usuario actual
+                      .map(user => user && (
+                        <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                          {user?.firstName || ''} {user?.lastName || ''} ({user?.role || ''})
                         </option>
                       ))
                     }

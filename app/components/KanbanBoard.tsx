@@ -152,9 +152,9 @@ function TaskForm({ projectId, task, onClose }: TaskFormProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="">Sin asignar</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName} ({user.expertise})
+              {users.map(user => user && (
+                <option key={user?.id || 'unknown'} value={user?.id || ''}>
+                  {user?.firstName || ''} {user?.lastName || ''} ({user?.expertise || ''})
                 </option>
               ))}
             </select>
