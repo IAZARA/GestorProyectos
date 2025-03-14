@@ -2,14 +2,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '../../store/userStore';
+import { useProjectStore } from '../../store/projectStore';
 import { Project } from '../../types/project';
 import { Calendar as CalendarIcon, Users, Clock, ArrowUpRight, BarChart3, FileText, Briefcase, Plus, Lock, AlertCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
-import { getProjects } from '../../lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { users, currentUser, getUserById } = useUserStore();
+  const projectStore = useProjectStore();
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [pendingTasks, setPendingTasks] = useState<number>(0);
@@ -40,7 +41,12 @@ export default function DashboardPage() {
         try {
           // Cargar proyectos del usuario desde la API
           console.log(`Cargando proyectos para el usuario: ${currentUser.email}`);
-          const projectsData = await getProjects();
+          
+          // Usar la función fetchProjects del projectStore
+          await useProjectStore.getState().fetchProjects();
+          
+          // Obtener los proyectos del estado
+          const projectsData = useProjectStore.getState().projects;
           
           console.log(`Proyectos cargados: ${projectsData.length}`);
           

@@ -27,13 +27,22 @@ function ProjectsContent() {
   const { users, currentUser, checkAuthState } = useUserStore();
   const [isLoading, setIsLoading] = useState(true);
   
-  // Verificar el estado de autenticación al cargar la página
+  // Verificar el estado de autenticación y cargar proyectos al cargar la página
   useEffect(() => {
     const initProjects = async () => {
-      if (!currentUser) {
-        await checkAuthState();
+      try {
+        if (!currentUser) {
+          await checkAuthState();
+        }
+        
+        // Cargar proyectos desde la API
+        await useProjectStore.getState().fetchProjects();
+        console.log("Proyectos cargados desde la API");
+      } catch (error) {
+        console.error("Error al cargar proyectos:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     
     initProjects();

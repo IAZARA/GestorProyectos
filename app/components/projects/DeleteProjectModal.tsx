@@ -49,11 +49,21 @@ const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({
       }
       
       // Si la contraseña es correcta, eliminar el proyecto
-      deleteProject(projectId);
-      setIsLoading(false);
-      onClose();
-      router.push('/projects');
+      console.log(`Intentando eliminar el proyecto: ${projectId}`);
+      const success = await deleteProject(projectId);
+      
+      if (success) {
+        console.log('Proyecto eliminado correctamente');
+        setIsLoading(false);
+        onClose();
+        router.push('/projects');
+      } else {
+        console.error('Error al eliminar el proyecto');
+        setError('No se pudo eliminar el proyecto. Verifica que tengas permisos para hacerlo.');
+        setIsLoading(false);
+      }
     } catch (error) {
+      console.error('Error al eliminar el proyecto:', error);
       setError('Error al eliminar el proyecto');
       setIsLoading(false);
     }

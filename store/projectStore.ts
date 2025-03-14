@@ -4,30 +4,36 @@ import { Project, Task, Comment, ProjectStatus, Attachment, ProjectPriority } fr
 import { v4 as uuidv4 } from 'uuid';
 import { sendNotification } from '../lib/socket';
 import { useUserStore } from './userStore';
+import { getProjects as apiGetProjects, deleteProject as apiDeleteProject, createProject as apiCreateProject, updateProject as apiUpdateProject, addProjectMembers as apiAddProjectMembers, removeProjectMembers as apiRemoveProjectMembers } from '../lib/api';
 
 interface ProjectState {
   projects: Project[];
   currentProject: Project | null;
+  isLoading: boolean;
   
   // Acciones para proyectos
-  addProject: (projectData: Omit<Project, 'id' | 'tasks' | 'comments' | 'attachments' | 'createdAt' | 'updatedAt'>) => Project;
-  updateProject: (id: string, projectData: Partial<Project>) => Project | null;
-  deleteProject: (id: string) => void;
+  fetchProjects: () => Promise<void>;
+  addProject: (projectData: Omit<Project, 'id' | 'tasks' | 'comments' | 'attachments' | 'createdAt' | 'updatedAt'>) => Promise<Project>;
+  updateProject: (id: string, projectData: Partial<Project>) => Promise<Project | null>;
+  deleteProject: (id: string) => Promise<boolean>;
   getProjectById: (id: string) => Project | undefined;
   getProjectsByMember: (userId: string) => Project[];
   setCurrentProject: (id: string) => void;
+  clearCurrentProject: () => void;
+  addProjectMembers: (projectId: string, memberIds: string[]) => Promise<Project | null>;
+  removeProjectMembers: (projectId: string, memberIds: string[]) => Promise<Project | null>;
   
   // Acciones para tareas
-  addTask: (projectId: string, taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Task | null;
-  updateTask: (projectId: string, taskId: string, taskData: Partial<Task>) => Task | null;
+  addTask: (projectId: string, task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTask: (projectId: string, taskId: string, taskData: Partial<Task>) => void;
   deleteTask: (projectId: string, taskId: string) => void;
   
   // Acciones para comentarios
-  addComment: (projectId: string, commentData: Omit<Comment, 'id' | 'createdAt'>) => Comment | null;
+  addComment: (projectId: string, comment: Omit<Comment, 'id' | 'createdAt'>) => void;
   deleteComment: (projectId: string, commentId: string) => void;
   
   // Acciones para archivos adjuntos
-  addAttachment: (projectId: string, attachmentData: Omit<Attachment, 'id' | 'createdAt'>) => Attachment | null;
+  addAttachment: (projectId: string, attachment: Omit<Attachment, 'id' | 'createdAt'>) => void;
   deleteAttachment: (projectId: string, attachmentId: string) => void;
 }
 
@@ -86,162 +92,120 @@ export const useProjectStore = create<ProjectState>()(
     (set, get) => ({
       projects: initialProjects,
       currentProject: null,
+      isLoading: false,
       
-      addProject: (projectData) => {
-        const now = new Date();
-        const newProject: Project = {
-          ...projectData,
-          id: uuidv4(),
-          tasks: [],
-          comments: [],
-          attachments: [],
-          createdAt: now,
-          updatedAt: now,
-          priority: projectData.priority || 'Media',
-          status: projectData.status || 'Pendiente'
-        };
-        
-        set((state) => ({
-          projects: [...state.projects, newProject]
-        }));
-        
-        // Obtener el usuario actual
-        const currentUser = useUserStore.getState().currentUser;
-        if (currentUser) {
-          console.log(`[PROYECTO] Creando proyecto por usuario: ${currentUser.firstName} ${currentUser.lastName} (${currentUser.id})`);
-          
-          // Corregir el ID del creador si es necesario
-          let fromUserId = currentUser.id;
-          
-          // Corregir ID de Ivan Zarate si es necesario
-          if (currentUser.email === 'ivan.zarate@minseg.gob.ar' && fromUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
-            console.log(`[PROYECTO] Corrigiendo ID de Ivan Zarate: ${fromUserId} -> 857af152-2fd5-4a4b-a8cb-468fc2681f5c`);
-            fromUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-          }
-          
-          // Corregir ID de Maxi Scarimbolo si es necesario
-          if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar' && fromUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
-            console.log(`[PROYECTO] Corrigiendo ID de Maxi Scarimbolo: ${fromUserId} -> e3fc93f9-9941-4840-ac2c-a30a7fcd322f`);
-            fromUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-          }
-          
-          // Notificar a todos los miembros del proyecto excepto al creador
-          if (newProject.members && Array.isArray(newProject.members)) {
-            newProject.members.forEach(memberId => {
-              // Corregir ID de miembro si es necesario
-              let toUserId = memberId;
-              
-              // Verificar si el miembro es Ivan Zarate y corregir su ID si es necesario
-              const memberUser = useUserStore.getState().getUserById(memberId);
-              if (memberUser && memberUser.email === 'ivan.zarate@minseg.gob.ar' && toUserId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
-                console.log(`[PROYECTO] Corrigiendo ID de miembro Ivan Zarate: ${toUserId} -> 857af152-2fd5-4a4b-a8cb-468fc2681f5c`);
-                toUserId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-              }
-              
-              // Verificar si el miembro es Maxi Scarimbolo y corregir su ID si es necesario
-              if (memberUser && memberUser.email === 'maxi.scarimbolo@minseg.gob.ar' && toUserId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
-                console.log(`[PROYECTO] Corrigiendo ID de miembro Maxi Scarimbolo: ${toUserId} -> e3fc93f9-9941-4840-ac2c-a30a7fcd322f`);
-                toUserId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-              }
-              
-              if (toUserId !== fromUserId) {
-                console.log(`[PROYECTO] Enviando notificación de nuevo proyecto a usuario ${toUserId}`);
-                sendNotification({
-                  type: 'project_added',
-                  content: `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${newProject.name}"`,
-                  fromUserId: currentUser.id,
-                  toUserId: toUserId
-                });
-              }
-            });
-          }
+      fetchProjects: async () => {
+        set({ isLoading: true });
+        try {
+          const projects = await apiGetProjects();
+          set({ projects, isLoading: false });
+        } catch (error) {
+          console.error(error);
+          set({ isLoading: false });
         }
-        
-        return newProject;
       },
       
-      updateProject: (id, projectData) => {
-        const { projects } = get();
-        const projectIndex = projects.findIndex(project => project.id === id);
-        
-        if (projectIndex === -1) return null;
-        
-        const originalProject = projects[projectIndex];
-        const updatedProject = {
-          ...originalProject,
-          ...projectData,
-          updatedAt: new Date()
-        };
-        
-        const updatedProjects = [...projects];
-        updatedProjects[projectIndex] = updatedProject;
-        
-        set({ 
-          projects: updatedProjects,
-          currentProject: get().currentProject?.id === id ? updatedProject : get().currentProject
-        });
-        
-        // Obtener el usuario actual
-        const currentUser = useUserStore.getState().currentUser;
-        if (currentUser) {
-          // Verificar si se ha editado la wiki
-          if (projectData.wikiContent && projectData.wikiContent !== originalProject.wikiContent) {
-            // Notificar a todos los miembros del proyecto excepto al editor
-            updatedProject.members.forEach(memberId => {
-              if (memberId !== currentUser.id) {
-                sendNotification({
-                  type: 'wiki_edited',
-                  content: `${currentUser.firstName} ${currentUser.lastName} ha editado la wiki del proyecto "${updatedProject.name}"`,
-                  fromUserId: currentUser.id,
-                  toUserId: memberId
-                });
-              }
-            });
+      addProject: async (projectData) => {
+        try {
+          const currentUser = useUserStore.getState().currentUser;
+          
+          if (!currentUser) {
+            console.error('No hay usuario autenticado para crear el proyecto');
+            throw new Error('No hay usuario autenticado');
           }
           
-          // Verificar si se han añadido nuevos miembros al proyecto
-          if (projectData.members && Array.isArray(projectData.members)) {
-            const newMembers = projectData.members.filter(
-              memberId => !originalProject.members.includes(memberId)
-            );
-            
-            // Si el usuario actual es gestor o administrador, notificar a los nuevos miembros
-            if ((currentUser.role === 'Gestor' || currentUser.role === 'Administrador') && newMembers.length > 0) {
-              newMembers.forEach(newMemberId => {
-                sendNotification({
-                  type: 'project_member_added',
-                  content: `${currentUser.firstName} ${currentUser.lastName} te ha añadido al proyecto "${updatedProject.name}"`,
-                  fromUserId: currentUser.id,
-                  toUserId: newMemberId
-                });
-              });
-            }
+          console.log('Creando proyecto en el servidor:', projectData);
+          
+          // Crear el proyecto en el servidor
+          const createdProject = await apiCreateProject({
+            ...projectData,
+            createdById: currentUser.id,
+            // Asegurarse de que el creador sea miembro del proyecto
+            members: [...(projectData.members || []), currentUser.id]
+          });
+          
+          console.log('Proyecto creado en el servidor:', createdProject);
+          
+          // Actualizar el estado local con el proyecto creado
+          set((state) => ({
+            projects: [...state.projects, createdProject]
+          }));
+          
+          return createdProject;
+        } catch (error) {
+          console.error('Error al crear el proyecto:', error);
+          throw error;
+        }
+      },
+      
+      updateProject: async (id, projectData) => {
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === id);
+          
+          if (projectIndex === -1) return null;
+          
+          console.log('Actualizando proyecto en el servidor:', id, projectData);
+          
+          // Actualizar el proyecto en el servidor
+          const updatedProjectFromServer = await apiUpdateProject(id, projectData);
+          
+          if (!updatedProjectFromServer) {
+            console.error('No se pudo actualizar el proyecto en el servidor');
+            return null;
           }
           
-          // Notificación general de actualización del proyecto (para cambios que no sean wiki o miembros)
-          if (!projectData.wikiContent && !projectData.members) {
-            updatedProject.members.forEach(memberId => {
+          console.log('Proyecto actualizado en el servidor:', updatedProjectFromServer);
+          
+          // Actualizar el estado local con los datos del servidor
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProjectFromServer;
+          
+          set({
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === id ? updatedProjectFromServer : get().currentProject
+          });
+          
+          // Notificar a los miembros del proyecto sobre la actualización
+          const currentUser = useUserStore.getState().currentUser;
+          
+          if (currentUser && updatedProjectFromServer.members) {
+            updatedProjectFromServer.members.forEach(memberId => {
               if (memberId !== currentUser.id) {
                 sendNotification({
                   type: 'project_updated',
-                  content: `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProject.name}"`,
+                  content: `${currentUser.firstName} ${currentUser.lastName} ha actualizado el proyecto "${updatedProjectFromServer.name}"`,
                   fromUserId: currentUser.id,
                   toUserId: memberId
                 });
               }
             });
           }
+          
+          return updatedProjectFromServer;
+        } catch (error) {
+          console.error('Error al actualizar el proyecto:', error);
+          return null;
         }
-        
-        return updatedProject;
       },
       
-      deleteProject: (id) => {
-        set((state) => ({
-          projects: state.projects.filter(project => project.id !== id),
-          // Si el proyecto eliminado es el proyecto actual, lo reseteamos
-          currentProject: state.currentProject?.id === id ? null : state.currentProject
-        }));
+      deleteProject: async (id) => {
+        try {
+          // Primero, eliminar el proyecto en el servidor
+          await apiDeleteProject(id);
+          
+          // Luego, actualizar el estado local
+          set((state) => ({
+            projects: state.projects.filter(project => project.id !== id),
+            // Si el proyecto eliminado es el proyecto actual, lo reseteamos
+            currentProject: state.currentProject?.id === id ? null : state.currentProject
+          }));
+          
+          return true;
+        } catch (error) {
+          console.error('Error al eliminar el proyecto:', error);
+          return false;
+        }
       },
       
       getProjectById: (id) => {
@@ -257,15 +221,89 @@ export const useProjectStore = create<ProjectState>()(
         set({ currentProject: project || null });
       },
       
-      addTask: (projectId, taskData) => {
+      clearCurrentProject: () => {
+        set({ currentProject: null });
+      },
+      
+      addProjectMembers: async (projectId, memberIds) => {
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === projectId);
+          
+          if (projectIndex === -1) return null;
+          
+          console.log('Agregando miembros al proyecto en el servidor:', projectId, memberIds);
+          
+          // Agregar miembros al proyecto en el servidor
+          const updatedProjectFromServer = await apiAddProjectMembers(projectId, memberIds);
+          
+          if (!updatedProjectFromServer) {
+            console.error('No se pudo agregar miembros al proyecto en el servidor');
+            return null;
+          }
+          
+          console.log('Miembros agregados al proyecto en el servidor:', updatedProjectFromServer);
+          
+          // Actualizar el estado local con los datos del servidor
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProjectFromServer;
+          
+          set({
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+          });
+          
+          return updatedProjectFromServer;
+        } catch (error) {
+          console.error('Error al agregar miembros al proyecto:', error);
+          return null;
+        }
+      },
+      
+      removeProjectMembers: async (projectId, memberIds) => {
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === projectId);
+          
+          if (projectIndex === -1) return null;
+          
+          console.log('Eliminando miembros del proyecto en el servidor:', projectId, memberIds);
+          
+          // Eliminar miembros del proyecto en el servidor
+          const updatedProjectFromServer = await apiRemoveProjectMembers(projectId, memberIds);
+          
+          if (!updatedProjectFromServer) {
+            console.error('No se pudo eliminar miembros del proyecto en el servidor');
+            return null;
+          }
+          
+          console.log('Miembros eliminados del proyecto en el servidor:', updatedProjectFromServer);
+          
+          // Actualizar el estado local con los datos del servidor
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProjectFromServer;
+          
+          set({
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+          });
+          
+          return updatedProjectFromServer;
+        } catch (error) {
+          console.error('Error al eliminar miembros del proyecto:', error);
+          return null;
+        }
+      },
+      
+      addTask: (projectId, task) => {
         const { projects } = get();
         const projectIndex = projects.findIndex(project => project.id === projectId);
         
-        if (projectIndex === -1) return null;
+        if (projectIndex === -1) return;
         
         const now = new Date();
         const newTask: Task = {
-          ...taskData,
+          ...task,
           id: uuidv4(),
           createdAt: now,
           updatedAt: now
@@ -298,19 +336,17 @@ export const useProjectStore = create<ProjectState>()(
             });
           }
         }
-        
-        return newTask;
       },
       
       updateTask: (projectId, taskId, taskData) => {
         const { projects } = get();
         const projectIndex = projects.findIndex(project => project.id === projectId);
         
-        if (projectIndex === -1) return null;
+        if (projectIndex === -1) return;
         
         const taskIndex = projects[projectIndex].tasks.findIndex(task => task.id === taskId);
         
-        if (taskIndex === -1) return null;
+        if (taskIndex === -1) return;
         
         const updatedTask = {
           ...projects[projectIndex].tasks[taskIndex],
@@ -334,8 +370,6 @@ export const useProjectStore = create<ProjectState>()(
           projects: updatedProjects,
           currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
         });
-        
-        return updatedTask;
       },
       
       deleteTask: (projectId, taskId) => {
@@ -359,14 +393,14 @@ export const useProjectStore = create<ProjectState>()(
         });
       },
       
-      addComment: (projectId, commentData) => {
+      addComment: (projectId, comment) => {
         const { projects } = get();
         const projectIndex = projects.findIndex(project => project.id === projectId);
         
-        if (projectIndex === -1) return null;
+        if (projectIndex === -1) return;
         
         const newComment: Comment = {
-          ...commentData,
+          ...comment,
           id: uuidv4(),
           createdAt: new Date()
         };
@@ -400,8 +434,6 @@ export const useProjectStore = create<ProjectState>()(
             }
           });
         }
-        
-        return newComment;
       },
       
       deleteComment: (projectId, commentId) => {
@@ -426,14 +458,14 @@ export const useProjectStore = create<ProjectState>()(
       },
       
       // Nuevas acciones para archivos adjuntos
-      addAttachment: (projectId, attachmentData) => {
+      addAttachment: (projectId, attachment) => {
         const { projects } = get();
         const projectIndex = projects.findIndex(project => project.id === projectId);
         
-        if (projectIndex === -1) return null;
+        if (projectIndex === -1) return;
         
         const newAttachment: Attachment = {
-          ...attachmentData,
+          ...attachment,
           id: uuidv4(),
           createdAt: new Date()
         };
@@ -451,8 +483,6 @@ export const useProjectStore = create<ProjectState>()(
           projects: updatedProjects,
           currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
         });
-        
-        return newAttachment;
       },
       
       deleteAttachment: (projectId, attachmentId) => {

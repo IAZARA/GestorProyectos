@@ -424,4 +424,149 @@ router.get('/:id/tasks', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/projects/:id/members
+ * @desc Agregar miembros a un proyecto
+ * @access Private
+ */
+router.post('/:id/members', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { members } = req.body;
+    
+    if (!members || !Array.isArray(members)) {
+      return res.status(400).json({ error: 'Se requiere un array de IDs de miembros' });
+    }
+    
+    // Verificar si el proyecto existe
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        members: {
+          select: { id: true }
+        }
+      }
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    // Verificar si el usuario es el creador del proyecto
+    if (project.createdById !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para modificar este proyecto' });
+    }
+    
+    // Agregar los miembros al proyecto
+    const updatedProject = await prisma.project.update({
+      where: { id },
+      data: {
+        members: {
+          connect: members.map(memberId => ({ id: memberId }))
+        }
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true
+          }
+        },
+        members: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true
+          }
+        }
+      }
+    });
+    
+    res.json(updatedProject);
+  } catch (error) {
+    console.error('Error al agregar miembros al proyecto:', error);
+    res.status(500).json({ error: 'Error al agregar miembros al proyecto' });
+  }
+});
+
+/**
+ * @route DELETE /api/projects/:id/members
+ * @desc Eliminar miembros de un proyecto
+ * @access Private
+ */
+router.delete('/:id/members', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { members } = req.body;
+    
+    if (!members || !Array.isArray(members)) {
+      return res.status(400).json({ error: 'Se requiere un array de IDs de miembros' });
+    }
+    
+    // Verificar si el proyecto existe
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        members: {
+          select: { id: true }
+        }
+      }
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    // Verificar si el usuario es el creador del proyecto
+    if (project.createdById !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para modificar este proyecto' });
+    }
+    
+    // No permitir eliminar al creador del proyecto
+    if (members.includes(project.createdById)) {
+      return res.status(400).json({ error: 'No se puede eliminar al creador del proyecto' });
+    }
+    
+    // Eliminar los miembros del proyecto
+    const updatedProject = await prisma.project.update({
+      where: { id },
+      data: {
+        members: {
+          disconnect: members.map(memberId => ({ id: memberId }))
+        }
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true
+          }
+        },
+        members: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            photoUrl: true
+          }
+        }
+      }
+    });
+    
+    res.json(updatedProject);
+  } catch (error) {
+    console.error('Error al eliminar miembros del proyecto:', error);
+    res.status(500).json({ error: 'Error al eliminar miembros del proyecto' });
+  }
+});
+
 module.exports = router;

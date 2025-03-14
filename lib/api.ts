@@ -339,6 +339,32 @@ const downloadAttachment = async (attachmentId: string): Promise<Blob> => {
   }
 };
 
+/**
+ * Agrega miembros a un proyecto
+ * @param {string} projectId - ID del proyecto
+ * @param {string[]} memberIds - IDs de los usuarios a agregar
+ * @returns {Promise<Object>} El proyecto actualizado
+ */
+const addProjectMembers = async (projectId: string, memberIds: string[]): Promise<any> => {
+  return fetchWithAuth(`/api/projects/${projectId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ members: memberIds })
+  });
+};
+
+/**
+ * Elimina miembros de un proyecto
+ * @param {string} projectId - ID del proyecto
+ * @param {string[]} memberIds - IDs de los usuarios a eliminar
+ * @returns {Promise<Object>} El proyecto actualizado
+ */
+const removeProjectMembers = async (projectId: string, memberIds: string[]): Promise<any> => {
+  return fetchWithAuth(`/api/projects/${projectId}/members`, {
+    method: 'DELETE',
+    body: JSON.stringify({ members: memberIds })
+  });
+};
+
 // Exportar las funciones
 export {
   login,
@@ -356,5 +382,7 @@ export {
   updateTask,
   deleteTask,
   uploadAttachment,
-  downloadAttachment
+  downloadAttachment,
+  addProjectMembers,
+  removeProjectMembers
 };
