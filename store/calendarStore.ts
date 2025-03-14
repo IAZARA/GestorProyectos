@@ -75,6 +75,8 @@ const initialEvents: CalendarEvent[] = [
 
 // Función para corregir IDs de usuario conocidos
 const correctUserId = (userId: string): string => {
+  if (!userId) return userId;
+  
   // Corregir ID para Ivan Zarate
   if (userId !== IVAN_ID && 
       (userId.includes('ivan') || userId.includes('zarate') || 
@@ -93,6 +95,18 @@ const correctUserId = (userId: string): string => {
   
   return userId;
 };
+
+// Función segura para enviar notificaciones
+const safeNotify = (notification: any) => {
+  try {
+    sendNotification(notification);
+  } catch (error) {
+    console.error('[CALENDAR] Error al enviar notificación:', error);
+  }
+};
+
+// Referencia al store de proyectos para evitar importación circular
+let projectStore: any = null;
 
 export const useCalendarStore = create<CalendarState>()(
   persist(
@@ -113,50 +127,66 @@ export const useCalendarStore = create<CalendarState>()(
         }));
         
         // Enviar notificación a todos los usuarios cuando se añade un evento
-        const currentUser = useUserStore.getState().currentUser;
-        if (currentUser) {
-          // Obtener todos los usuarios
-          const allUsers = useUserStore.getState().users;
-          
-          // Si el evento está asociado a un proyecto, notificar solo a los miembros del proyecto
-          if (newEvent.projectId) {
-            // Importar el store de proyectos dinámicamente para evitar dependencias circulares
-            import('./projectStore').then(({ useProjectStore }) => {
-              const project = useProjectStore.getState().getProjectById(newEvent.projectId);
-              if (project) {
-                project.members.forEach(memberId => {
-                  // Corregir el ID del miembro si es necesario
-                  const correctedMemberId = correctUserId(memberId);
-                  
-                  if (correctedMemberId !== currentUser.id) {
-                    console.log(`[CALENDAR] Enviando notificación de evento de proyecto a: ${correctedMemberId}`);
-                    sendNotification({
-                      type: 'event_added',
-                      content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
-                      fromId: currentUser.id,
-                      toId: correctedMemberId
-                    });
-                  }
-                });
+        try {
+          const currentUser = useUserStore.getState().currentUser;
+          if (currentUser) {
+            // Obtener todos los usuarios
+            const allUsers = useUserStore.getState().users;
+            
+            // Si el evento está asociado a un proyecto, notificar solo a los miembros del proyecto
+            if (newEvent.projectId) {
+              // Intentar obtener el store de proyectos si no lo tenemos ya
+              if (!projectStore) {
+                try {
+                  // Importar de forma segura
+                  const projectModule = require('./projectStore');
+                  projectStore = projectModule.useProjectStore;
+                } catch (error) {
+                  console.error('[CALENDAR] Error al importar projectStore:', error);
+                }
               }
-            });
-          } else {
-            // Si es un evento general, notificar a todos los usuarios
-            allUsers.forEach(user => {
-              // Corregir el ID del usuario si es necesario
-              const correctedUserId = correctUserId(user.id);
               
-              if (correctedUserId !== currentUser.id) {
-                console.log(`[CALENDAR] Enviando notificación de evento general a: ${correctedUserId} (${user.firstName} ${user.lastName})`);
-                sendNotification({
-                  type: 'event_added',
-                  content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
-                  fromId: currentUser.id,
-                  toId: correctedUserId
-                });
+              if (projectStore) {
+                const project = projectStore.getState().getProjectById(newEvent.projectId);
+                if (project && project.members) {
+                  project.members.forEach((memberId: string) => {
+                    // Corregir el ID del miembro si es necesario
+                    const correctedMemberId = correctUserId(memberId);
+                    
+                    if (correctedMemberId && correctedMemberId !== currentUser.id) {
+                      console.log(`[CALENDAR] Enviando notificación de evento de proyecto a: ${correctedMemberId}`);
+                      safeNotify({
+                        type: 'event_added',
+                        content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
+                        fromId: currentUser.id,
+                        toId: correctedMemberId
+                      });
+                    }
+                  });
+                }
               }
-            });
+            } else {
+              // Si es un evento general, notificar a todos los usuarios
+              allUsers.forEach(user => {
+                if (!user || !user.id) return;
+                
+                // Corregir el ID del usuario si es necesario
+                const correctedUserId = correctUserId(user.id);
+                
+                if (correctedUserId && correctedUserId !== currentUser.id) {
+                  console.log(`[CALENDAR] Enviando notificación de evento general a: ${correctedUserId} (${user.firstName} ${user.lastName})`);
+                  safeNotify({
+                    type: 'event_added',
+                    content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
+                    fromId: currentUser.id,
+                    toId: correctedUserId
+                  });
+                }
+              });
+            }
           }
+        } catch (error) {
+          console.error('[CALENDAR] Error al procesar notificaciones:', error);
         }
         
         return newEvent;
@@ -193,8 +223,10 @@ export const useCalendarStore = create<CalendarState>()(
       },
       
       getEventsByUser: (userId) => {
+        const correctedUserId = correctUserId(userId);
         return get().events.filter(event => 
-          event.createdBy === userId || event.attendees.includes(userId)
+          event.createdBy === correctedUserId || 
+          (event.attendees && event.attendees.includes(correctedUserId))
         );
       },
       
@@ -229,7 +261,7 @@ export const useCalendarStore = create<CalendarState>()(
         
         const updatedEvent = {
           ...events[eventIndex],
-          attachments: [...events[eventIndex].attachments, newAttachment],
+          attachments: [...(events[eventIndex].attachments || []), newAttachment],
           updatedAt: new Date()
         };
         
@@ -249,7 +281,7 @@ export const useCalendarStore = create<CalendarState>()(
         
         const updatedEvent = {
           ...events[eventIndex],
-          attachments: events[eventIndex].attachments.filter(
+          attachments: (events[eventIndex].attachments || []).filter(
             attachment => attachment.id !== attachmentId
           ),
           updatedAt: new Date()

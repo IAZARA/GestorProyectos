@@ -1,8 +1,8 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useUserStore } from '../../store/userStore';
 import { initializeSocket, getSocket, markNotificationAsRead } from '../../lib/socket';
-import { Bell, Calendar, MessageSquare, FileText, Users, BookOpen } from 'lucide-react';
+import { Bell, Calendar, MessageSquare, FileText, Users, BookOpen, RefreshCw, WifiOff } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -26,6 +26,77 @@ export default function NotificationCenter() {
   const currentUser = useUserStore(state => state.currentUser);
   const [socketStatus, setSocketStatus] = useState<string>('Desconectado');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState<number>(0);
+
+  // Función para solicitar notificaciones no leídas
+  const requestNotifications = useCallback(() => {
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      console.log('[NOTIFICACIONES] Solicitando notificaciones no leídas');
+      setIsLoading(true);
+      socket.emit('get:unreadNotifications');
+      setLastRefresh(new Date());
+      
+      // Establecer un timeout para detectar si no hay respuesta
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 3000);
+    } else {
+      console.log('[NOTIFICACIONES] No se pueden solicitar notificaciones, socket desconectado');
+      setSocketStatus('Desconectado');
+      
+      // Intentar reconectar si está desconectado
+      if (socket) {
+        try {
+          socket.connect();
+          setSocketStatus('Reconectando...');
+        } catch (error) {
+          console.error('[NOTIFICACIONES] Error al reconectar socket:', error);
+          setSocketStatus('Error de conexión');
+        }
+      } else if (currentUser) {
+        // Si no hay socket, inicializar uno nuevo
+        initializeSocket(currentUser.id);
+        setSocketStatus('Inicializando...');
+      }
+    }
+  }, [currentUser]);
+
+  // Función para reiniciar el socket
+  const resetSocket = useCallback(() => {
+    if (!currentUser) return;
+    
+    console.log('[NOTIFICACIONES] Reiniciando conexión de socket');
+    setSocketStatus('Reiniciando...');
+    setRetryCount(prev => prev + 1);
+    
+    // Obtener el socket actual y desconectarlo si existe
+    const currentSocket = getSocket();
+    if (currentSocket) {
+      currentSocket.disconnect();
+    }
+    
+    // Corregir ID de usuario si es necesario
+    let userId = currentUser.id;
+    if (currentUser.email === 'ivan.zarate@minseg.gob.ar' && userId !== '857af152-2fd5-4a4b-a8cb-468fc2681f5c') {
+      console.log('[NOTIFICACIONES] Corrigiendo ID de Ivan Zarate en NotificationCenter:', userId, '->', '857af152-2fd5-4a4b-a8cb-468fc2681f5c');
+      userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+    } else if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar' && userId !== 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f') {
+      console.log('[NOTIFICACIONES] Corrigiendo ID de Maxi Scarimbolo en NotificationCenter:', userId, '->', 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f');
+      userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+    }
+    
+    // Inicializar un nuevo socket
+    const newSocket = initializeSocket(userId);
+    
+    // Esperar un momento y solicitar notificaciones
+    setTimeout(() => {
+      if (newSocket.connected) {
+        requestNotifications();
+      }
+    }, 1000);
+  }, [currentUser, requestNotifications]);
 
   useEffect(() => {
     if (currentUser) {
@@ -52,6 +123,10 @@ export default function NotificationCenter() {
       socket.on('connect', () => {
         console.log('[NOTIFICACIONES] Socket conectado con ID:', socket.id);
         setSocketStatus('Conectado');
+        setIsLoading(true);
+        
+        // Solicitar notificaciones al conectar
+        socket.emit('get:unreadNotifications');
       });
 
       // Manejar la desconexión
@@ -64,19 +139,27 @@ export default function NotificationCenter() {
       socket.on('connect_error', (error) => {
         console.error('[NOTIFICACIONES] Error de conexión:', error);
         setSocketStatus(`Error: ${error.message}`);
+        
+        // Intentar reconectar después de un error (máximo 3 intentos)
+        if (retryCount < 3) {
+          setTimeout(() => {
+            resetSocket();
+          }, 5000);
+        }
       });
 
       // Escuchar notificaciones no leídas
       socket.on('notification:unread', (unreadNotifications: Notification[]) => {
+        setIsLoading(false);
         console.log('[NOTIFICACIONES] Recibidas notificaciones no leídas', unreadNotifications);
-        if (unreadNotifications && unreadNotifications.length > 0) {
+        if (unreadNotifications && Array.isArray(unreadNotifications) && unreadNotifications.length > 0) {
           setNotifications(prev => {
             // Combinar con notificaciones existentes, evitando duplicados
             const existingIds = new Set(prev.map(n => n.id));
             const newNotifications = unreadNotifications.filter(n => !existingIds.has(n.id));
             return [...newNotifications, ...prev];
           });
-          setUnreadCount(unreadNotifications.length);
+          setUnreadCount(unreadNotifications.filter(n => !n.isRead).length);
         } else {
           console.log('[NOTIFICACIONES] No hay notificaciones no leídas');
         }
@@ -85,38 +168,41 @@ export default function NotificationCenter() {
       // Escuchar nuevas notificaciones
       socket.on('notification:new', (notification: Notification) => {
         console.log('[NOTIFICACIONES] Nueva notificación recibida', notification);
-        setNotifications(prev => [notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
-        
-        // Mostrar una notificación del navegador si está permitido
-        if (Notification.permission === 'granted') {
-          new Notification('Nueva notificación', {
-            body: notification.content
+        if (notification && notification.id) {
+          setNotifications(prev => {
+            // Evitar duplicados
+            if (prev.some(n => n.id === notification.id)) {
+              return prev;
+            }
+            return [notification, ...prev];
           });
+          if (!notification.isRead) {
+            setUnreadCount(prev => prev + 1);
+          }
+          
+          // Mostrar una notificación del navegador si está permitido
+          if (Notification.permission === 'granted') {
+            try {
+              new Notification('Nueva notificación', {
+                body: notification.content
+              });
+            } catch (error) {
+              console.error('[NOTIFICACIONES] Error al mostrar notificación del navegador:', error);
+            }
+          }
         }
       });
 
       // Solicitar permiso para notificaciones del navegador
-      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-        Notification.requestPermission();
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
       }
       
-      // Forzar una solicitud de notificaciones no leídas
-      const requestNotifications = () => {
-        if (socket.connected) {
-          console.log('[NOTIFICACIONES] Solicitando notificaciones no leídas manualmente');
-          socket.emit('get:unreadNotifications');
-          setLastRefresh(new Date());
-        } else {
-          console.log('[NOTIFICACIONES] No se pueden solicitar notificaciones, socket desconectado');
-          // Intentar reconectar si está desconectado
-          socket.connect();
-        }
-      };
-      
-      // Solicitar notificaciones inmediatamente y luego cada 10 segundos
+      // Solicitar notificaciones inmediatamente y luego cada 30 segundos
       requestNotifications();
-      const intervalId = setInterval(requestNotifications, 10000);
+      const intervalId = setInterval(requestNotifications, 30000);
 
       return () => {
         // Limpiar los listeners cuando el componente se desmonta
@@ -132,26 +218,34 @@ export default function NotificationCenter() {
         }
       };
     }
-  }, [currentUser]);
+  }, [currentUser, requestNotifications, resetSocket, retryCount]);
 
   const handleMarkAsRead = (notificationId: string) => {
-    markNotificationAsRead(notificationId);
-    setNotifications(prev => 
-      prev.map(n => 
-        n.id === notificationId ? { ...n, isRead: true } : n
-      )
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    try {
+      markNotificationAsRead(notificationId);
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notificationId ? { ...n, isRead: true } : n
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('[NOTIFICACIONES] Error al marcar notificación como leída:', error);
+    }
   };
 
   const handleMarkAllAsRead = () => {
-    notifications.forEach(n => {
-      if (!n.isRead) {
-        markNotificationAsRead(n.id);
-      }
-    });
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
+    try {
+      notifications.forEach(n => {
+        if (!n.isRead) {
+          markNotificationAsRead(n.id);
+        }
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('[NOTIFICACIONES] Error al marcar todas las notificaciones como leídas:', error);
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -176,38 +270,28 @@ export default function NotificationCenter() {
   };
 
   const formatDate = (date: Date) => {
-    const now = new Date();
-    const notificationDate = new Date(date);
-    const diffInHours = Math.floor((now.getTime() - notificationDate.getTime()) / (1000 * 60 * 60));
+    if (!date) return 'Fecha desconocida';
     
-    if (diffInHours < 1) {
-      return 'Hace unos minutos';
-    } else if (diffInHours < 24) {
-      return `Hace ${diffInHours} ${diffInHours === 1 ? 'hora' : 'horas'}`;
-    } else {
-      return notificationDate.toLocaleDateString();
+    try {
+      const now = new Date();
+      const notificationDate = new Date(date);
+      const diffInHours = Math.floor((now.getTime() - notificationDate.getTime()) / (1000 * 60 * 60));
+      
+      if (diffInHours < 1) {
+        return 'Hace unos minutos';
+      } else if (diffInHours < 24) {
+        return `Hace ${diffInHours} ${diffInHours === 1 ? 'hora' : 'horas'}`;
+      } else {
+        return notificationDate.toLocaleDateString();
+      }
+    } catch (error) {
+      console.error('[NOTIFICACIONES] Error al formatear fecha:', error);
+      return 'Fecha inválida';
     }
   };
 
   const handleRefreshNotifications = () => {
-    const socket = getSocket();
-    if (socket && socket.connected) {
-      console.log('[NOTIFICACIONES] Actualizando notificaciones manualmente');
-      socket.emit('get:unreadNotifications');
-      setLastRefresh(new Date());
-    } else {
-      console.log('[NOTIFICACIONES] No se pueden actualizar notificaciones, socket desconectado');
-      // Intentar reconectar e inicializar de nuevo
-      if (currentUser) {
-        let userId = currentUser.id;
-        if (currentUser.email === 'ivan.zarate@minseg.gob.ar') {
-          userId = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
-        } else if (currentUser.email === 'maxi.scarimbolo@minseg.gob.ar') {
-          userId = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
-        }
-        initializeSocket(userId);
-      }
-    }
+    resetSocket();
   };
 
   if (!currentUser) {
@@ -234,10 +318,16 @@ export default function NotificationCenter() {
             <h3 className="text-sm font-semibold">Notificaciones</h3>
             <div className="flex space-x-2">
               <button
-                className="text-xs text-gray-600 hover:text-gray-800"
+                className="text-xs text-gray-600 hover:text-gray-800 flex items-center"
                 onClick={handleRefreshNotifications}
                 title="Actualizar notificaciones"
+                disabled={isLoading}
               >
+                {isLoading ? (
+                  <RefreshCw size={14} className="animate-spin mr-1" />
+                ) : (
+                  <RefreshCw size={14} className="mr-1" />
+                )}
                 Actualizar
               </button>
               {unreadCount > 0 && (
@@ -250,6 +340,14 @@ export default function NotificationCenter() {
               )}
             </div>
           </div>
+          
+          {socketStatus !== 'Conectado' && (
+            <div className="p-2 bg-yellow-50 text-xs text-yellow-700 flex items-center justify-center">
+              <WifiOff size={14} className="mr-1" />
+              {socketStatus} - <button onClick={resetSocket} className="ml-1 underline">Reconectar</button>
+            </div>
+          )}
+          
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-gray-500">
