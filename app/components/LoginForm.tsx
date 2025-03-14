@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
 import Image from 'next/image';
 
@@ -19,24 +18,11 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      // Primero intentamos login con nuestro store
+      // Intentar iniciar sesión con nuestra API personalizada
       const user = await login(email, password);
       
       if (user) {
-        console.log('Login exitoso con store para:', email);
-        
-        // Si el login con el store es exitoso, intentamos también con NextAuth
-        const result = await signIn('credentials', {
-          redirect: false,
-          email,
-          password,
-        });
-        
-        if (result?.error) {
-          console.warn('Error en NextAuth, pero continuamos con el login del store:', result.error);
-        } else {
-          console.log('Login exitoso con NextAuth');
-        }
+        console.log('Login exitoso para:', email);
         
         // Verificar si hay una redirección pendiente
         const redirectPath = localStorage.getItem('redirectAfterLogin');
@@ -51,36 +37,10 @@ export default function LoginForm() {
             console.log('Redirigiendo al dashboard...');
             router.push('/dashboard');
           }
-        }, 800); // Aumentamos el tiempo de espera para asegurar que todo se sincronice
-        
-        return;
-      }
-      
-      // Si el login con el store falla, intentamos con NextAuth directamente
-      console.log('Login fallido con store, intentando con NextAuth para:', email);
-      
-      const result = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-      });
-      
-      if (result?.error) {
-        console.error('Login fallido con NextAuth:', result.error);
-        setError('Email o contraseña incorrectos');
-      } else {
-        console.log('Login exitoso con NextAuth, redirigiendo...');
-        // Intentamos sincronizar el store con el usuario autenticado por NextAuth
-        const syncResult = await login(email, password);
-        if (syncResult) {
-          console.log('Store sincronizado con NextAuth');
-        } else {
-          console.warn('No se pudo sincronizar el store con NextAuth');
-        }
-        
-        setTimeout(() => {
-          router.push('/dashboard');
         }, 800);
+      } else {
+        console.error('Login fallido para:', email);
+        setError('Email o contraseña incorrectos');
       }
     } catch (error) {
       console.error('Error de inicio de sesión:', error);
@@ -179,4 +139,4 @@ export default function LoginForm() {
       </div>
     </div>
   );
-} 
+}

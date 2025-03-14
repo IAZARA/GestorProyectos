@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useProjectStore } from '../../../store/projectStore';
 import { useUserStore } from '../../../store/userStore';
 import KanbanBoard from '../../components/projects/KanbanBoard';
@@ -10,15 +9,15 @@ import CollaborativeWiki from '../../components/projects/CollaborativeWiki';
 import { Calendar, Users, FileText, Kanban, Book, ArrowLeft, UserPlus, X, Search, Check, UserMinus, Trash2 } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import DeleteProjectModal from '../../components/projects/DeleteProjectModal';
+import { User } from '../../../types/user';
 
 type TabType = 'overview' | 'kanban' | 'wiki' | 'files';
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session, status } = useSession();
   const { projects, getProjectById, updateProject, currentProject, setCurrentProject } = useProjectStore();
-  const { users, getUserById, currentUser } = useUserStore();
+  const { users, getUserById, currentUser, checkAuthState } = useUserStore();
   
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -27,39 +26,68 @@ export default function ProjectDetailPage() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<Record<string, User>>({});
+  const [projectCreator, setProjectCreator] = useState<User | null>(null);
 
   // Obtener el ID del proyecto de los parámetros
-  const projectId = params.id as string;
+  const projectId = params?.id as string;
   
-  // Verificar la autenticación y recuperar la sesión si es necesario
+  // Cargar datos de usuarios para el proyecto
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (currentProject) {
+        // Cargar datos del creador
+        if (currentProject.createdBy) {
+          try {
+            const creator = await getUserById(currentProject.createdBy);
+            if (creator) {
+              setProjectCreator(creator);
+            }
+          } catch (error) {
+            console.error('Error al cargar datos del creador:', error);
+          }
+        }
+        
+        // Cargar datos de los miembros
+        const membersData: Record<string, User> = {};
+        for (const memberId of currentProject.members) {
+          try {
+            const member = await getUserById(memberId);
+            if (member) {
+              membersData[memberId] = member;
+            }
+          } catch (error) {
+            console.error(`Error al cargar datos del miembro ${memberId}:`, error);
+          }
+        }
+        setProjectMembers(membersData);
+      }
+    };
+    
+    loadUserData();
+  }, [currentProject, getUserById]);
+  
+  // Verificar la autenticación y cargar el proyecto
   useEffect(() => {
     const checkAuthAndLoadProject = async () => {
-      // Si el usuario no está autenticado y la sesión está cargando, esperar
-      if (!currentUser && status === 'loading') {
-        return;
-      }
-      
-      // Si el usuario no está autenticado y la sesión no está cargando, intentar recuperar
-      if (!currentUser && status === 'unauthenticated') {
-        console.log('No hay sesión activa, intentando recuperar desde localStorage...');
-        
-        // Verificar si este proyecto fue creado recientemente
-        const lastCreatedProject = localStorage.getItem('last_created_project');
-        
-        if (lastCreatedProject === projectId) {
-          console.log('Este proyecto fue creado recientemente, redirigiendo a login...');
-          // Guardar la URL actual para redirigir después del login
-          localStorage.setItem('redirectAfterLogin', window.location.pathname);
+      // Verificar el estado de autenticación
+      if (!currentUser) {
+        try {
+          await checkAuthState();
+        } catch (error) {
+          console.error('Error al verificar autenticación:', error);
           router.push('/login');
           return;
         }
-        
-        // Si no hay sesión y no es un proyecto recién creado, redirigir al login
+      }
+      
+      // Si llegamos aquí, verificamos si el usuario está autenticado
+      if (!currentUser) {
+        console.log('No hay usuario autenticado, redirigiendo a login...');
         router.push('/login');
         return;
       }
       
-      // Si llegamos aquí, el usuario está autenticado
       setAuthChecked(true);
       
       // Cargar el proyecto
@@ -78,13 +106,20 @@ export default function ProjectDetailPage() {
       }
     };
     
-    checkAuthAndLoadProject();
-  }, [projectId, currentUser, status, router, getProjectById, setCurrentProject]);
+    if (projectId) {
+      checkAuthAndLoadProject();
+    } else {
+      router.push('/projects');
+    }
+  }, [projectId, currentUser, router, getProjectById, setCurrentProject, checkAuthState]);
   
-  if (status === 'loading') {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">Cargando...</p>
+        <div className="text-center">
+          <p className="text-lg mb-2">Cargando...</p>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
       </div>
     );
   }
@@ -188,7 +223,7 @@ export default function ProjectDetailPage() {
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Creado por</p>
                   <p className="font-medium">
-                    {getUserById(currentProject.createdBy)?.firstName} {getUserById(currentProject.createdBy)?.lastName}
+                    {projectCreator ? `${projectCreator.firstName} ${projectCreator.lastName}` : 'Cargando...'}
                   </p>
                 </div>
                 <div>
@@ -241,8 +276,17 @@ export default function ProjectDetailPage() {
               {currentProject.members.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {currentProject.members.map(memberId => {
-                    const member = getUserById(memberId);
-                    if (!member) return null;
+                    const member = projectMembers[memberId];
+                    if (!member) return (
+                      <div key={memberId} className="flex items-center p-3 border rounded-lg">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                          <span className="text-gray-500 font-medium">...</span>
+                        </div>
+                        <div className="flex-grow">
+                          <p className="font-medium">Cargando...</p>
+                        </div>
+                      </div>
+                    );
                     
                     return (
                       <div key={memberId} className="flex items-center p-3 border rounded-lg">
@@ -419,7 +463,7 @@ export default function ProjectDetailPage() {
                 <h4 className="text-sm font-medium text-gray-500 mb-2">Usuarios seleccionados ({selectedUsers.length})</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedUsers.map(userId => {
-                    const user = getUserById(userId);
+                    const user = projectMembers[userId] || users.find(u => u.id === userId);
                     if (!user) return null;
                     
                     return (
@@ -518,4 +562,4 @@ export default function ProjectDetailPage() {
       </div>
     </ProtectedRoute>
   );
-} 
+}

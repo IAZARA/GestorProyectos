@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
 import { User, Expertise, Role } from '../../types/user';
 import { Save, ArrowLeft, Camera, X, Upload, Mail, Briefcase, Shield } from 'lucide-react';
@@ -10,8 +9,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { data: session, status, update: updateSession } = useSession();
-  const { currentUser, updateUser } = useUserStore();
+  const { currentUser, updateUser, checkAuthState } = useUserStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -30,11 +28,17 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-    
-    if (currentUser) {
+    const initProfile = async () => {
+      // Verificar el estado de autenticación al cargar la página
+      if (!currentUser) {
+        await checkAuthState();
+      }
+      
+      if (!currentUser) {
+        router.push('/login');
+        return;
+      }
+      
       setFormData({
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
@@ -48,8 +52,10 @@ export default function ProfilePage() {
       setTimeout(() => {
         setIsLoading(false);
       }, 500);
-    }
-  }, [status, currentUser, router]);
+    };
+    
+    initProfile();
+  }, [currentUser, router, checkAuthState]);
 
   if (isLoading || !currentUser) {
     return (
@@ -86,9 +92,13 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('/api/upload', {
+      // Utilizar la URL base de la API
+      const response = await fetch('http://localhost:3005/api/upload', {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
       });
       
       if (!response.ok) {
@@ -143,16 +153,6 @@ export default function ProfilePage() {
       const updatedUser = await updateUser(currentUser.id, updateData);
       
       if (updatedUser) {
-        // Actualizar la sesión de NextAuth
-        await updateSession({
-          ...session,
-          user: {
-            ...session?.user,
-            name: `${formData.firstName} ${formData.lastName}`,
-            image: formData.photoUrl
-          }
-        });
-        
         setSuccessMessage('Perfil actualizado correctamente');
         
         // Limpiar campos de contraseña
@@ -398,4 +398,4 @@ export default function ProfilePage() {
       <ProfileContent />
     </ProtectedRoute>
   );
-} 
+}

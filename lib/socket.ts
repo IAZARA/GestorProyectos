@@ -135,7 +135,9 @@ export const initializeSocket = (userId: string): Socket => {
   console.log('[SOCKET] Conectando a:', socketUrl);
   
   socket = io(socketUrl, {
-    auth: { userId: correctedUserId },
+    auth: { 
+      userId: correctedUserId
+    },
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,

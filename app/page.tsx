@@ -1,27 +1,39 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useUserStore } from '../store/userStore';
 import MakeAdmin from './components/MakeAdmin';
 
 export default function Home() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { currentUser, checkAuthState } = useUserStore();
   const [showAdminTool, setShowAdminTool] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    if (status === 'authenticated') {
-      // Si el usuario ya está autenticado, redirigir según su rol
-      if (session.user.role === 'Administrador') {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
+    const initAuth = async () => {
+      // Verificar el estado de autenticación al cargar la página
+      if (!currentUser) {
+        await checkAuthState();
       }
-    } else if (status === 'unauthenticated') {
-      // Si no está autenticado, redirigir al login
-      router.push('/login');
-    }
-  }, [router, status, session]);
+      
+      setIsLoading(false);
+      
+      if (currentUser) {
+        // Si el usuario ya está autenticado, redirigir según su rol
+        if (currentUser.role === 'Administrador') {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        // Si no está autenticado, redirigir al login
+        router.push('/login');
+      }
+    };
+    
+    initAuth();
+  }, [router, currentUser, checkAuthState]);
   
   // Mostrar herramienta de administrador con Ctrl+Shift+A
   useEffect(() => {
@@ -39,7 +51,9 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="text-center">
         <h1 className="text-3xl font-bold mb-4">Gestor de Proyectos</h1>
-        <p className="text-gray-600 mb-8">Redirigiendo...</p>
+        <p className="text-gray-600 mb-8">
+          {isLoading ? 'Verificando sesión...' : 'Redirigiendo...'}
+        </p>
         
         {showAdminTool && (
           <div className="mt-8">
@@ -53,4 +67,4 @@ export default function Home() {
       </div>
     </main>
   );
-} 
+}

@@ -1,6 +1,7 @@
 'use client';
 
-import { SessionProvider } from 'next-auth/react';
+import { useEffect } from 'react';
+import { useUserStore } from '../store/userStore';
 import AutoMakeAdmin from './components/AutoMakeAdmin';
 
 export default function Providers({
@@ -8,10 +9,17 @@ export default function Providers({
 }: {
   children: React.ReactNode;
 }) {
+  const { checkAuthState } = useUserStore();
+
+  useEffect(() => {
+    // Verificar el estado de autenticación al cargar la aplicación
+    checkAuthState();
+  }, [checkAuthState]);
+
   return (
-    <SessionProvider>
+    <>
       <AutoMakeAdmin />
       {children}
-    </SessionProvider>
+    </>
   );
-} 
+}

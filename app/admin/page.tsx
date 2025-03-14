@@ -1,5 +1,4 @@
 'use client';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useUserStore } from '../../store/userStore';
@@ -8,9 +7,8 @@ import { User, Role, Expertise } from '../../types/user';
 import { Plus, Edit, Trash2, Users, ArrowLeft, Search } from 'lucide-react';
 
 export default function AdminPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
-  const { users, currentUser, addUser, updateUser, deleteUser } = useUserStore();
+  const { users, currentUser, addUser, updateUser, deleteUser, checkAuthState, fetchUsers } = useUserStore();
   const { projects } = useProjectStore();
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -28,20 +26,30 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    } else if (status === 'authenticated' && currentUser?.role !== 'Administrador') {
-      router.push('/dashboard');
-    }
-    
-    if (status !== 'loading') {
+    const initAdmin = async () => {
+      // Verificar el estado de autenticación al cargar la página
+      if (!currentUser) {
+        await checkAuthState();
+      }
+      
+      if (!currentUser) {
+        router.push('/login');
+      } else if (currentUser.role !== 'Administrador') {
+        router.push('/dashboard');
+      }
+      
+      // Obtener usuarios de la API independientemente de si ya hay usuarios en el estado
+      await fetchUsers();
+      
       setTimeout(() => {
         setIsLoading(false);
       }, 500);
-    }
-  }, [status, currentUser, router]);
+    };
+    
+    initAdmin();
+  }, [currentUser, router, checkAuthState, fetchUsers]);
 
-  if (isLoading || status === 'loading') {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -520,4 +528,4 @@ export default function AdminPage() {
       )}
     </div>
   );
-} 
+}

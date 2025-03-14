@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useProjectStore } from '../../store/projectStore';
 import { useUserStore } from '../../store/userStore';
 import { Project, ProjectStatus, ProjectPriority } from '../../types/project';
@@ -11,7 +10,6 @@ import ProtectedRoute from '../components/ProtectedRoute';
 function ProjectsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -26,7 +24,20 @@ function ProjectsContent() {
   });
   
   const { projects, addProject } = useProjectStore();
-  const { users, currentUser } = useUserStore();
+  const { users, currentUser, checkAuthState } = useUserStore();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Verificar el estado de autenticación al cargar la página
+  useEffect(() => {
+    const initProjects = async () => {
+      if (!currentUser) {
+        await checkAuthState();
+      }
+      setIsLoading(false);
+    };
+    
+    initProjects();
+  }, [currentUser, checkAuthState]);
   
   // Verificar si se debe mostrar el modal de creación basado en el parámetro de URL
   useEffect(() => {
@@ -41,10 +52,13 @@ function ProjectsContent() {
     }
   }, [searchParams, currentUser]);
   
-  if (!currentUser) {
+  if (isLoading || !currentUser) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">Cargando...</p>
+        <div className="text-center">
+          <p className="text-lg mb-2">Cargando...</p>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
       </div>
     );
   }
@@ -101,14 +115,8 @@ function ProjectsContent() {
       members: []
     });
     
-    // Añadir un pequeño retraso antes de redirigir para asegurar que la sesión se mantenga
-    setTimeout(() => {
-      // Guardar el ID del proyecto en localStorage para recuperarlo en caso de pérdida de sesión
-      localStorage.setItem('last_created_project', createdProject.id);
-      
-      // Redirigir al detalle del proyecto creado
-      router.push(`/projects/${createdProject.id}`);
-    }, 500); // Retraso de 500ms para asegurar que todo se sincronice correctamente
+    // Redirigir al detalle del proyecto creado
+    router.push(`/projects/${createdProject.id}`);
   };
   
   const formatDate = (date: Date) => {
@@ -424,4 +432,4 @@ export default function ProjectsPage() {
       </Suspense>
     </ProtectedRoute>
   );
-} 
+}

@@ -24,13 +24,17 @@
     "start:all:sh": "bash scripts/start.sh",
     "start:all:win": "scripts\\start.bat",
     "test:notification": "node scripts/test-client-notification-node.js",
-    "test:notification:browser": "node scripts/serve-test-page.js"
+    "test:notification:browser": "node scripts/serve-test-page.js",
+    "db:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "knex": "^3.1.0",
     "lucide-react": "^0.363.0",
     "mongodb": "^6.14.2",

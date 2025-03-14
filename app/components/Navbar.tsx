@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
 import { LogOut, User, ChevronDown, Settings } from 'lucide-react';
 import Image from 'next/image';
@@ -10,8 +9,7 @@ import NotificationCenter from './NotificationCenter';
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session, status } = useSession();
-  const { currentUser } = useUserStore();
+  const { currentUser, logout } = useUserStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -37,17 +35,14 @@ export default function Navbar() {
   useEffect(() => {
     if (isMounted) {
       console.log('Estado de Navbar:', {
-        nextAuthStatus: status,
-        hasSession: !!session,
         hasCurrentUser: !!currentUser,
-        userEmail: currentUser?.email || session?.user?.email || 'No disponible'
+        userEmail: currentUser?.email || 'No disponible'
       });
     }
-  }, [isMounted, status, session, currentUser]);
+  }, [isMounted, currentUser]);
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    useUserStore.getState().logout();
+    logout();
     router.push('/login');
   };
 
@@ -67,16 +62,14 @@ export default function Navbar() {
   }
 
   // Solo mostramos el contenido real después de la hidratación
-  const shouldShowNavbar = isMounted && (currentUser || status === 'authenticated');
+  const shouldShowNavbar = isMounted && currentUser;
   
   // Determinar qué información de usuario mostrar
-  const userDisplayName = currentUser?.firstName || session?.user?.name?.split(' ')[0] || 'Usuario';
+  const userDisplayName = currentUser?.firstName || 'Usuario';
   const userInitials = currentUser 
     ? `${currentUser.firstName.charAt(0)}${currentUser.lastName.charAt(0)}`
-    : session?.user?.name
-      ? session.user.name.split(' ').map(n => n.charAt(0)).join('')
-      : 'U';
-  const userPhotoUrl = currentUser?.photoUrl || session?.user?.image || '';
+    : 'U';
+  const userPhotoUrl = currentUser?.photoUrl || '';
 
   if (!shouldShowNavbar) {
     return <div className="bg-[#2d2c55] shadow-sm h-16"></div>;
@@ -147,7 +140,7 @@ export default function Navbar() {
                     Mi perfil
                   </button>
 
-                  {(currentUser?.role === 'Administrador' || session?.user?.role === 'Administrador') && (
+                  {currentUser?.role === 'Administrador' && (
                     <button
                       onClick={() => {
                         router.push('/admin');
@@ -177,4 +170,4 @@ export default function Navbar() {
       </div>
     </nav>
   );
-} 
+}

@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useUserStore } from '../../store/userStore';
 
 export default function ProtectedRoute({
@@ -12,63 +11,69 @@ export default function ProtectedRoute({
   requiredRole?: string | null;
 }) {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const { currentUser } = useUserStore();
+  const { currentUser, checkAuthState } = useUserStore();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
+      // Verificar el estado de autenticación al cargar el componente
+      if (!currentUser) {
+        await checkAuthState();
+      }
+      
       // Verificar si el usuario está autenticado
-      const isAuthenticated = status === 'authenticated' || currentUser !== null;
+      const isAuthenticated = currentUser !== null;
       
       console.log('Estado de autenticación:', {
-        nextAuthStatus: status,
         hasCurrentUser: currentUser !== null,
         isAuthenticated,
-        userRole: currentUser?.role || session?.user?.role
+        userRole: currentUser?.role
       });
       
-      // Si no está autenticado y ya terminó de cargar, redirigir al login
-      if (!isAuthenticated && status !== 'loading') {
+      // Si no está autenticado, redirigir al login
+      if (!isAuthenticated) {
         console.log('No autenticado, redirigiendo a login...');
+        
+        // Guardar la ruta actual para redireccionar después del login
+        if (typeof window !== 'undefined') {
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/login') {
+            localStorage.setItem('redirectAfterLogin', currentPath);
+          }
+        }
+        
         router.push('/login');
         return;
       }
       
       // Si está autenticado, verificar el rol si es necesario
-      if (isAuthenticated) {
-        if (requiredRole) {
-          // Verificar si el usuario tiene el rol requerido
-          const userRole = currentUser?.role || session?.user?.role;
-          console.log('Verificando rol:', { requiredRole, userRole });
-          
-          // Permitir acceso si el rol coincide exactamente o si el usuario es administrador
-          // También permitir acceso a gestores si el rol requerido es "Gestor"
-          const hasRequiredRole = 
-            userRole === requiredRole || 
-            userRole === 'Administrador' || 
-            (requiredRole === 'Gestor' && userRole === 'Gestor');
-          
-          if (!hasRequiredRole) {
-            console.log(`Rol requerido: ${requiredRole}, rol actual: ${userRole}, acceso denegado`);
-            router.push('/dashboard');
-            return;
-          }
-        }
+      if (isAuthenticated && requiredRole) {
+        // Verificar si el usuario tiene el rol requerido
+        const userRole = currentUser.role;
+        console.log('Verificando rol:', { requiredRole, userRole });
         
-        // Usuario autenticado y con el rol correcto
-        setIsAuthorized(true);
+        // Permitir acceso si el rol coincide exactamente o si el usuario es administrador
+        // También permitir acceso a gestores si el rol requerido es "Gestor"
+        const hasRequiredRole = 
+          userRole === requiredRole || 
+          userRole === 'Administrador' || 
+          (requiredRole === 'Gestor' && userRole === 'Gestor');
+        
+        if (!hasRequiredRole) {
+          console.log(`Rol requerido: ${requiredRole}, rol actual: ${userRole}, acceso denegado`);
+          router.push('/dashboard');
+          return;
+        }
       }
       
-      // Marcar como cargado
-      if (status !== 'loading') {
-        setIsLoading(false);
-      }
+      // Usuario autenticado y con el rol correcto
+      setIsAuthorized(true);
+      setIsLoading(false);
     };
     
     checkAuth();
-  }, [status, currentUser, router, requiredRole]);
+  }, [currentUser, router, requiredRole, checkAuthState]);
 
   // Mientras se está cargando o verificando la autenticación
   if (isLoading) {
@@ -84,4 +89,4 @@ export default function ProtectedRoute({
 
   // Si está autorizado, mostrar el contenido
   return isAuthorized ? <>{children}</> : null;
-} 
+}
