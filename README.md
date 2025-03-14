@@ -1,245 +1,151 @@
-# Gestor de Proyectos
+# Gestionadcor de Proyectos
 
-Sistema de gestión de proyectos con notificaciones en tiempo real para el Ministerio de Seguridad.
+Sistema de gestión de proyectos con calendario, notificaciones y colaboración en tiempo real.
 
-![Escudo](escudo%20HD.png)
+## Características
 
-## Características Principales
+- Gestión de proyectos y tareas
+- Calendario compartido
+- Sistema de notificaciones en tiempo real
+- Colaboración entre usuarios
+- Almacenamiento persistente en PostgreSQL
 
-- **Gestión de Proyectos**: Creación, asignación y seguimiento de proyectos
-- **Notificaciones en Tiempo Real**: Sistema de notificaciones mediante WebSockets
-- **Gestión de Usuarios**: Administración de usuarios con diferentes roles y permisos
-- **Interfaz Moderna**: Diseño responsive con Tailwind CSS
+## Requisitos previos
 
-## Requisitos
+- Node.js (v14 o superior)
+- PostgreSQL (v12 o superior)
+- npm o yarn
 
-- Node.js 18 o superior
-- Docker y Docker Compose
-- PostgreSQL (se puede usar a través de Docker)
+## Configuración
 
-## Despliegue en Digital Ocean
+1. Clona el repositorio:
+   ```bash
+   git clone <url-del-repositorio>
+   cd gestionadcor-de-proyectos
+   ```
 
-### Paso 1: Crear un Droplet
+2. Instala las dependencias:
+   ```bash
+   npm install
+   ```
 
-1. Inicia sesión en tu cuenta de Digital Ocean
-2. Crea un nuevo Droplet con las siguientes especificaciones:
-   - **Distribución**: Ubuntu 22.04 LTS
-   - **Plan**: Basic (recomendado mínimo 2GB RAM / 1 CPU)
-   - **Región**: Elige la más cercana a tus usuarios
-   - **Autenticación**: SSH Keys (recomendado) o Password
+3. Configura las variables de entorno:
+   Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+   ```
+   # Configuración de la base de datos PostgreSQL
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=gestionadcor
+   DB_USER=postgres
+   DB_PASSWORD=tu_contraseña
 
-### Paso 2: Conectarse al Droplet
+   # Configuración del servidor
+   PORT=3000
+   NODE_ENV=development
 
-```bash
-ssh root@IP_DEL_DROPLET
-```
+   # Configuración de JWT para autenticación
+   JWT_SECRET=tu_secreto_jwt
+   JWT_EXPIRES_IN=7d
 
-### Paso 3: Clonar el Repositorio
+   # Configuración de NextAuth
+   NEXTAUTH_SECRET=tu_secreto_para_nextauth
+   NEXTAUTH_URL=http://localhost:3000
 
-```bash
-# Actualizar el sistema
-apt update && apt upgrade -y
+   # Configuración de carga de archivos
+   UPLOAD_DIR=./uploads
+   ```
 
-# Instalar Git
-apt install git -y
+4. Inicializa la base de datos:
+   ```bash
+   npm run migrate
+   ```
 
-# Clonar el repositorio
-git clone https://github.com/IAZARA/GestorProyectos.git
-cd GestorProyectos
-```
+## Ejecución
 
-### Paso 4: Ejecutar el Script de Configuración
-
-```bash
-# Dar permisos de ejecución al script
-chmod +x setup.sh
-
-# Ejecutar el script
-sudo ./setup.sh
-```
-
-El script realizará automáticamente las siguientes acciones:
-
-1. Instalar todas las dependencias necesarias (Node.js, Docker, Docker Compose, etc.)
-2. Configurar las variables de entorno
-3. Iniciar la base de datos PostgreSQL en Docker
-4. Ejecutar las migraciones de Prisma
-5. Inicializar la base de datos con el usuario administrador (Ivan Zarate)
-6. Construir la aplicación
-7. Configurar PM2 para mantener la aplicación en ejecución
-8. Opcionalmente, configurar Nginx como proxy inverso
-9. Opcionalmente, configurar SSL con Certbot
-
-### Paso 5: Acceder a la Aplicación
-
-Una vez completada la configuración, puedes acceder a la aplicación de las siguientes maneras:
-
-- **Localmente**: http://localhost:3000
-- **Remotamente**: http://IP_DEL_DROPLET (si configuraste Nginx)
-- **Con dominio y SSL**: https://tu-dominio.com (si configuraste Nginx y SSL)
-
-### Credenciales de Acceso
-
-- **Email**: ivan.zarate@minseg.gob.ar
-- **Contraseña**: Vortex733-
-
-## Estructura del Proyecto
-
-El proyecto está organizado en las siguientes carpetas principales:
-
-- `/app`: Componentes y páginas de la aplicación Next.js
-- `/components`: Componentes reutilizables
-- `/lib`: Utilidades y funciones auxiliares
-- `/prisma`: Esquema de la base de datos y migraciones
-- `/server`: Código del servidor WebSocket para notificaciones
-- `/store`: Gestión del estado con Zustand
-- `/types`: Definiciones de tipos TypeScript
-
-## Comandos Útiles
-
-### Desarrollo Local
+Para iniciar la aplicación en modo desarrollo:
 
 ```bash
-# Instalar dependencias
-npm install
-
-# Iniciar la base de datos
-docker-compose up -d
-
-# Ejecutar migraciones
-npx prisma migrate deploy
-
-# Iniciar el servidor de desarrollo
-npm run dev:socket
+npm run start:postgres
 ```
 
-### Iniciar la Aplicación en Producción
+O también:
 
 ```bash
-./start.sh
+npm run dev
 ```
 
-### Gestionar la Aplicación con PM2
+La aplicación estará disponible en `http://localhost:3000`.
+
+## Estructura del proyecto
+
+```
+gestionadcor-de-proyectos/
+├── app/                  # Componentes y páginas de la aplicación
+├── components/           # Componentes reutilizables
+├── config/               # Configuración de la aplicación
+├── lib/                  # Utilidades y servicios
+├── migrations/           # Migraciones de la base de datos
+├── pages/                # Páginas de la aplicación (Next.js)
+│   └── api/              # Endpoints de la API
+├── public/               # Archivos estáticos
+├── scripts/              # Scripts de utilidad
+├── store/                # Stores de estado (Zustand)
+├── types/                # Definiciones de tipos TypeScript
+└── uploads/              # Directorio para archivos subidos
+```
+
+## Scripts disponibles
+
+- `npm run dev`: Inicia la aplicación en modo desarrollo
+- `npm run build`: Compila la aplicación para producción
+- `npm run start`: Inicia la aplicación en modo producción
+- `npm run lint`: Ejecuta el linter
+- `npm run migrate`: Ejecuta las migraciones de la base de datos
+- `npm run start:postgres`: Inicia la aplicación verificando la conexión a PostgreSQL
+- `npm run check:structure`: Verifica la estructura del proyecto
+- `npm run clean:mongodb`: Elimina las referencias a MongoDB
+
+### Scripts de prueba y verificación
+
+- `scripts/test-postgres-api.js`: Prueba todos los endpoints de la API de PostgreSQL
+- `scripts/run-tests.sh`: Inicia el servidor y ejecuta las pruebas de la API
+- `scripts/verify-migration.js`: Verifica la integridad de los datos migrados de MongoDB a PostgreSQL
+
+Para ejecutar las pruebas:
 
 ```bash
-# Ver estado de la aplicación
-pm2 status
+# Ejecutar todas las pruebas
+./scripts/run-tests.sh
 
-# Reiniciar la aplicación
-pm2 restart gestionadcor
+# Ejecutar solo las pruebas de la API
+node scripts/test-postgres-api.js
 
-# Ver logs
-pm2 logs gestionadcor
-
-# Detener la aplicación
-pm2 stop gestionadcor
+# Verificar la migración
+node scripts/verify-migration.js
 ```
 
-### Gestionar la Base de Datos
+## Migración de MongoDB a PostgreSQL
 
-```bash
-# Ver contenedores en ejecución
-docker ps
+Este proyecto ha sido migrado de MongoDB a PostgreSQL. Para más detalles sobre la migración, consulta el archivo [MIGRATION_README.md](MIGRATION_README.md).
 
-# Ver logs de la base de datos
-docker logs gestionadcor-postgres
+## Migración de localStorage a PostgreSQL
 
-# Detener la base de datos
-docker-compose stop
+Para migrar el código que utiliza localStorage directamente a la nueva utilidad de almacenamiento que sincroniza con PostgreSQL, consulta el archivo [LOCALSTORAGE_MIGRATION.md](LOCALSTORAGE_MIGRATION.md).
 
-# Iniciar la base de datos
-docker-compose up -d
-```
+## Usuarios por defecto
 
-## Solución de Problemas
+El sistema incluye dos usuarios por defecto:
 
-### La aplicación no inicia
+1. **Iván Zarate**
+   - ID: `857af152-2fd5-4a4b-a8cb-468fc2681f5c`
+   - Email: `ivan@example.com`
+   - Rol: `admin`
 
-Verifica los logs de la aplicación:
-
-```bash
-pm2 logs gestionadcor
-```
-
-### Problemas con la base de datos
-
-Verifica que el contenedor de PostgreSQL esté en ejecución:
-
-```bash
-docker ps
-```
-
-Si no aparece, inicia la base de datos:
-
-```bash
-docker-compose up -d
-```
-
-### Problemas con las notificaciones
-
-Si las notificaciones no funcionan correctamente:
-
-```bash
-# Verificar el estado del servidor WebSocket
-pm2 logs gestionadcor
-
-# Reiniciar el servidor
-pm2 restart gestionadcor
-```
-
-### Reiniciar todo el sistema
-
-```bash
-# Detener la aplicación
-pm2 stop gestionadcor
-
-# Detener la base de datos
-docker-compose down
-
-# Iniciar la base de datos
-docker-compose up -d
-
-# Esperar a que la base de datos esté lista
-sleep 5
-
-# Iniciar la aplicación
-pm2 start gestionadcor
-```
-
-## Actualización de la Aplicación
-
-Para actualizar la aplicación con nuevos cambios:
-
-```bash
-# Detener la aplicación
-pm2 stop gestionadcor
-
-# Obtener los últimos cambios
-git pull
-
-# Instalar dependencias
-npm install
-
-# Ejecutar migraciones si es necesario
-npx prisma migrate deploy
-
-# Construir la aplicación
-npm run build
-
-# Iniciar la aplicación
-pm2 start gestionadcor
-```
-
-## Contribuir
-
-Si deseas contribuir al proyecto, por favor:
-
-1. Haz un fork del repositorio
-2. Crea una rama para tu funcionalidad (`git checkout -b feature/nueva-funcionalidad`)
-3. Haz commit de tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
-4. Haz push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+2. **Maxi Scarimbolo**
+   - ID: `e3fc93f9-9941-4840-ac2c-a30a7fcd322f`
+   - Email: `maxi@example.com`
+   - Rol: `user`
 
 ## Licencia
 
-Este proyecto es propiedad del Ministerio de Seguridad y está destinado para uso interno. 
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles. 

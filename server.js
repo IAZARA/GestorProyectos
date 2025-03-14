@@ -9,20 +9,28 @@ const handle = app.getRequestHandler();
 
 // Usar el puerto 3000 por defecto o el especificado en las variables de entorno
 const PORT = process.env.PORT || 3000;
-const WS_PORT = process.env.WS_PORT || 3001;
 
 app.prepare().then(() => {
+  // Crear el servidor HTTP
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
   });
 
-  // Inicializar el servidor de WebSockets en un puerto diferente
-  initializeSocketServer(server, WS_PORT);
+  // Inicializar el servidor de WebSockets en el mismo servidor HTTP
+  const io = initializeSocketServer(server);
+  
+  // Verificar que el servidor de WebSockets se ha inicializado correctamente
+  if (io) {
+    console.log('> WebSocket server initialized successfully');
+  } else {
+    console.error('> Failed to initialize WebSocket server');
+  }
 
+  // Iniciar el servidor
   server.listen(PORT, (err) => {
     if (err) throw err;
     console.log(`> Ready on http://localhost:${PORT}`);
-    console.log(`> WebSocket server running on port ${WS_PORT}`);
+    console.log(`> WebSocket server running on the same port`);
   });
 }); 

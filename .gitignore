@@ -36,3 +36,6 @@ next-env.d.ts
 # uploads
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# Scripts legacy que ya no se usan
+scripts/legacy/

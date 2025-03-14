@@ -5,6 +5,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendNotification } from '../lib/socket';
 import { useUserStore } from './userStore';
 
+// IDs correctos para usuarios conocidos
+const IVAN_ID = '857af152-2fd5-4a4b-a8cb-468fc2681f5c';
+const MAXI_ID = 'e3fc93f9-9941-4840-ac2c-a30a7fcd322f';
+
 // Crear algunos eventos iniciales para demostración
 const initialEvents: CalendarEvent[] = [
   {
@@ -69,6 +73,27 @@ const initialEvents: CalendarEvent[] = [
   }
 ];
 
+// Función para corregir IDs de usuario conocidos
+const correctUserId = (userId: string): string => {
+  // Corregir ID para Ivan Zarate
+  if (userId !== IVAN_ID && 
+      (userId.includes('ivan') || userId.includes('zarate') || 
+       userId.toLowerCase().includes('ivan') || userId.toLowerCase().includes('zarate'))) {
+    console.log('[CALENDAR] Corrigiendo ID de Ivan Zarate:', userId, '->', IVAN_ID);
+    return IVAN_ID;
+  }
+  
+  // Corregir ID para Maxi Scarimbolo
+  if (userId !== MAXI_ID && 
+      (userId.includes('maxi') || userId.includes('scarimbolo') || 
+       userId.toLowerCase().includes('maxi') || userId.toLowerCase().includes('scarimbolo'))) {
+    console.log('[CALENDAR] Corrigiendo ID de Maxi Scarimbolo:', userId, '->', MAXI_ID);
+    return MAXI_ID;
+  }
+  
+  return userId;
+};
+
 export const useCalendarStore = create<CalendarState>()(
   persist(
     (set, get) => ({
@@ -100,12 +125,16 @@ export const useCalendarStore = create<CalendarState>()(
               const project = useProjectStore.getState().getProjectById(newEvent.projectId);
               if (project) {
                 project.members.forEach(memberId => {
-                  if (memberId !== currentUser.id) {
+                  // Corregir el ID del miembro si es necesario
+                  const correctedMemberId = correctUserId(memberId);
+                  
+                  if (correctedMemberId !== currentUser.id) {
+                    console.log(`[CALENDAR] Enviando notificación de evento de proyecto a: ${correctedMemberId}`);
                     sendNotification({
                       type: 'event_added',
                       content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario del proyecto "${project.name}"`,
                       fromId: currentUser.id,
-                      toId: memberId
+                      toId: correctedMemberId
                     });
                   }
                 });
@@ -114,12 +143,16 @@ export const useCalendarStore = create<CalendarState>()(
           } else {
             // Si es un evento general, notificar a todos los usuarios
             allUsers.forEach(user => {
-              if (user.id !== currentUser.id) {
+              // Corregir el ID del usuario si es necesario
+              const correctedUserId = correctUserId(user.id);
+              
+              if (correctedUserId !== currentUser.id) {
+                console.log(`[CALENDAR] Enviando notificación de evento general a: ${correctedUserId} (${user.firstName} ${user.lastName})`);
                 sendNotification({
                   type: 'event_added',
                   content: `${currentUser.firstName} ${currentUser.lastName} ha añadido un evento "${newEvent.title}" al calendario general`,
                   fromId: currentUser.id,
-                  toId: user.id
+                  toId: correctedUserId
                 });
               }
             });
