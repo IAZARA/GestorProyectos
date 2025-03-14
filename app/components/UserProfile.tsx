@@ -8,12 +8,15 @@ interface UserProfileProps {
 }
 
 export default function UserProfile({ user }: UserProfileProps) {
+  // Usar una imagen por defecto o un placeholder si no hay foto de perfil
+  const profileImage = user.photoUrl || '/images/logo.png';
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
       <div className="flex flex-col items-center">
         <div className="relative w-32 h-32 mb-4">
           <Image
-            src={user.photoUrl}
+            src={profileImage}
             alt={`${user.firstName} ${user.lastName}`}
             fill
             className="rounded-full object-cover"
