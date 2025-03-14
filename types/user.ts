@@ -10,6 +10,7 @@ export interface User {
   role: Role;
   photoUrl?: string;
   email: string;
-  password: string; // En una aplicación real, nunca almacenaríamos contraseñas en texto plano
+  password?: string; // Hacemos la contraseña opcional para que sea compatible con la respuesta de la API
   especialidad?: string; // Nueva propiedad para la especialidad del usuario
+  token?: string; // Añadimos el token como propiedad opcional
 } 

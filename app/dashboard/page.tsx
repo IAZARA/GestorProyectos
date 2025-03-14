@@ -5,7 +5,7 @@ import { useUserStore } from '../../store/userStore';
 import { Project } from '../../types/project';
 import { Calendar as CalendarIcon, Users, Clock, ArrowUpRight, BarChart3, FileText, Briefcase, Plus, Lock, AlertCircle } from 'lucide-react';
 import ProtectedRoute from '../components/ProtectedRoute';
-import { fetchProjects } from '../../lib/projectApi';
+import { getProjects } from '../../lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [greeting, setGreeting] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Determinar el saludo según la hora del día
   useEffect(() => {
@@ -35,9 +36,13 @@ export default function DashboardPage() {
     const loadProjects = async () => {
       if (currentUser) {
         setIsLoading(true);
+        setError(null);
         try {
           // Cargar proyectos del usuario desde la API
-          const projectsData = await fetchProjects(currentUser.id);
+          console.log(`Cargando proyectos para el usuario: ${currentUser.email}`);
+          const projectsData = await getProjects();
+          
+          console.log(`Proyectos cargados: ${projectsData.length}`);
           
           // Actualizar el estado
           setUserProjects(projectsData);
@@ -52,6 +57,7 @@ export default function DashboardPage() {
           setPendingTasks(userPendingTasks.length);
         } catch (error) {
           console.error('Error al cargar proyectos:', error);
+          setError('Error al cargar proyectos. Por favor, intenta de nuevo más tarde.');
         } finally {
           setIsLoading(false);
         }
