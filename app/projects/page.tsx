@@ -38,15 +38,21 @@ function ProjectsContent() {
         // Cargar proyectos desde la API
         await useProjectStore.getState().fetchProjects();
         console.log("Proyectos cargados desde la API");
+        
+        // Cargar usuarios si es necesario
+        if (!users || users.length === 0) {
+          await useUserStore.getState().fetchUsers();
+          console.log("Usuarios cargados desde la API");
+        }
       } catch (error) {
-        console.error("Error al cargar proyectos:", error);
+        console.error("Error al cargar proyectos o usuarios:", error);
       } finally {
         setIsLoading(false);
       }
     };
     
     initProjects();
-  }, [currentUser, checkAuthState]);
+  }, [currentUser, checkAuthState, users]);
   
   // Verificar si se debe mostrar el modal de creación basado en el parámetro de URL
   useEffect(() => {
@@ -99,7 +105,7 @@ function ProjectsContent() {
     return matchesSearch && matchesStatus;
   });
   
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     if (!newProject.name.trim()) return;
     
     const projectData = {
@@ -110,22 +116,27 @@ function ProjectsContent() {
       members: [...newProject.members, currentUser.id] // Añadir al creador como miembro
     };
     
-    const createdProject = addProject(projectData);
-    setShowCreateModal(false);
-    
-    // Resetear el formulario
-    setNewProject({
-      name: '',
-      description: '',
-      status: 'Pendiente' as ProjectStatus,
-      priority: 'Media' as ProjectPriority,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      members: []
-    });
-    
-    // Redirigir al detalle del proyecto creado
-    router.push(`/projects/${createdProject.id}`);
+    try {
+      const createdProject = await addProject(projectData);
+      setShowCreateModal(false);
+      
+      // Resetear el formulario
+      setNewProject({
+        name: '',
+        description: '',
+        status: 'Pendiente' as ProjectStatus,
+        priority: 'Media' as ProjectPriority,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '',
+        members: []
+      });
+      
+      // Redirigir al detalle del proyecto creado
+      router.push(`/projects/${createdProject.id}`);
+    } catch (error) {
+      console.error('Error al crear el proyecto:', error);
+      // Aquí podrías mostrar un mensaje de error al usuario
+    }
   };
   
   const formatDate = (date: Date) => {
@@ -150,6 +161,7 @@ function ProjectsContent() {
   };
   
   const calculateProgress = (project: Project) => {
+    if (!project.tasks) return 0;
     const totalTasks = project.tasks.length;
     if (totalTasks === 0) return 0;
     
@@ -395,14 +407,17 @@ function ProjectsContent() {
                     className="w-full p-2 border rounded"
                     size={4}
                   >
-                    {users
-                      .filter(user => user && user.id !== currentUser?.id) // Excluir al usuario actual
-                      .map(user => user && (
-                        <option key={user?.id || 'unknown'} value={user?.id || ''}>
-                          {user?.firstName || ''} {user?.lastName || ''} ({user?.role || ''})
-                        </option>
-                      ))
-                    }
+                    {users && users.length > 0 ? (
+                      users
+                        .filter(user => user && user.id !== currentUser?.id) // Excluir al usuario actual
+                        .map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.firstName} {user.lastName} ({user.role})
+                          </option>
+                        ))
+                    ) : (
+                      <option disabled>Cargando usuarios...</option>
+                    )}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
                     Mantén presionada la tecla Ctrl (o Cmd en Mac) para seleccionar múltiples miembros

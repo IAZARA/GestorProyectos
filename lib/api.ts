@@ -5,31 +5,12 @@
 const API_BASE_URL = 'http://localhost:3005';
 
 import { User, Role, Expertise } from '../types/user';
+import { useUserStore } from '../store/userStore';
 
 // Asegurarnos de que LoginResponse sea compatible con User
 interface LoginResponse extends Omit<User, 'password' | 'especialidad'> {
   token: string;
 }
-
-/**
- * Obtiene el token de autenticación del localStorage
- * @returns {string|null} El token de autenticación o null si no existe
- */
-const getAuthToken = (): string | null => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('token');
-  }
-  return null;
-};
-
-/**
- * Verifica si hay un token de autenticación válido
- * @returns {boolean} True si hay un token válido, false en caso contrario
- */
-const isAuthenticated = (): boolean => {
-  const token = getAuthToken();
-  return !!token;
-};
 
 /**
  * Realiza una petición a la API con el token de autenticación
@@ -38,7 +19,7 @@ const isAuthenticated = (): boolean => {
  * @returns {Promise<any>} La respuesta de la API
  */
 const fetchWithAuth = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
-  const token = getAuthToken();
+  const token = useUserStore.getState().token;
   
   if (!token) {
     console.error('No hay token de autenticación disponible');
@@ -64,11 +45,9 @@ const fetchWithAuth = async (endpoint: string, options: RequestInit = {}): Promi
     
     if (!response.ok) {
       if (response.status === 401) {
-        // Token inválido o expirado, eliminar del localStorage
-        console.error('Token inválido o expirado, eliminando de localStorage');
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-        }
+        // Token inválido o expirado, limpiar el estado
+        console.error('Token inválido o expirado');
+        useUserStore.getState().setToken(null);
       }
       
       let errorMessage = `Error ${response.status}: ${response.statusText}`;
@@ -131,11 +110,8 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
       throw new Error('No se recibieron datos de usuario');
     }
     
-    // Guardar el token en localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', data.token);
-      console.log('Token guardado en localStorage');
-    }
+    // Guardar el token en el store
+    useUserStore.getState().setToken(data.token);
     
     return data;
   } catch (error) {
@@ -148,9 +124,7 @@ const login = async (email: string, password: string): Promise<LoginResponse> =>
  * Cierra la sesión del usuario
  */
 const logout = (): void => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('token');
-  }
+  useUserStore.getState().setToken(null);
 };
 
 /**
@@ -166,7 +140,36 @@ const getCurrentUser = async (): Promise<any> => {
  * @returns {Promise<Array>} Lista de usuarios
  */
 const getUsers = async (): Promise<any[]> => {
-  return fetchWithAuth('/api/users');
+  try {
+    // Añadir un pequeño retardo para evitar problemas con múltiples llamadas rápidas
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    console.log('Obteniendo lista de usuarios desde API');
+    const result = await fetchWithAuth('/api/users');
+    console.log(`Obtenidos ${result.length} usuarios correctamente`);
+    return result;
+  } catch (error) {
+    console.error('Error al obtener usuarios:', error);
+    // En caso de error, devolver una lista vacía en lugar de propagar el error
+    return [];
+  }
+};
+
+/**
+ * Obtiene un usuario por su ID
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<Object>} Datos del usuario
+ */
+const getUserById = async (userId: string): Promise<any> => {
+  try {
+    console.log(`Obteniendo información del usuario ${userId} desde API`);
+    const result = await fetchWithAuth(`/api/users/${userId}`);
+    console.log(`Usuario ${userId} obtenido correctamente:`, result);
+    return result;
+  } catch (error) {
+    console.error(`Error al obtener usuario ${userId}:`, error);
+    return null;
+  }
 };
 
 /**
@@ -281,31 +284,25 @@ const deleteTask = async (taskId: string): Promise<any> => {
  * @returns {Promise<Object>} El archivo adjunto creado
  */
 const uploadAttachment = async (formData: FormData): Promise<any> => {
-  const token = getAuthToken();
+  const token = useUserStore.getState().token;
   
   if (!token) {
     throw new Error('No hay token de autenticación');
   }
   
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/attachments/upload`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: formData
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error al subir archivo:', error);
-    throw error;
+  const response = await fetch(`${API_BASE_URL}/api/attachments`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Error al subir archivo: ${response.statusText}`);
   }
+  
+  return response.json();
 };
 
 /**
@@ -314,29 +311,23 @@ const uploadAttachment = async (formData: FormData): Promise<any> => {
  * @returns {Promise<Blob>} El archivo adjunto
  */
 const downloadAttachment = async (attachmentId: string): Promise<Blob> => {
-  const token = getAuthToken();
+  const token = useUserStore.getState().token;
   
   if (!token) {
     throw new Error('No hay token de autenticación');
   }
   
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/attachments/${attachmentId}/download`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+  const response = await fetch(`${API_BASE_URL}/api/attachments/${attachmentId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
     }
-    
-    return await response.blob();
-  } catch (error) {
-    console.error('Error al descargar archivo:', error);
-    throw error;
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Error al descargar archivo: ${response.statusText}`);
   }
+  
+  return response.blob();
 };
 
 /**
@@ -346,10 +337,33 @@ const downloadAttachment = async (attachmentId: string): Promise<Blob> => {
  * @returns {Promise<Object>} El proyecto actualizado
  */
 const addProjectMembers = async (projectId: string, memberIds: string[]): Promise<any> => {
-  return fetchWithAuth(`/api/projects/${projectId}/members`, {
-    method: 'POST',
-    body: JSON.stringify({ members: memberIds })
-  });
+  console.log('Agregando miembros mediante API:', projectId, memberIds);
+  try {
+    const response = await fetchWithAuth(`/api/projects/${projectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ memberIds })
+    });
+    console.log('Respuesta de adición de miembros:', response);
+    return response;
+  } catch (error) {
+    console.error('Error en API al agregar miembros:', error);
+    // Si falla la API, proporcionar una implementación de respaldo usando el estado local
+    console.log('Recurriendo a implementación de respaldo');
+    
+    // Obtenemos el proyecto actual
+    const project = await getProjectById(projectId);
+    if (!project) {
+      throw new Error('Proyecto no encontrado');
+    }
+    
+    // Añadimos los miembros (evitando duplicados)
+    const existingMembers = new Set(project.members);
+    memberIds.forEach(id => existingMembers.add(id));
+    const updatedMembers = Array.from(existingMembers);
+    
+    // Actualizamos el proyecto
+    return updateProject(projectId, { members: updatedMembers });
+  }
 };
 
 /**
@@ -359,19 +373,40 @@ const addProjectMembers = async (projectId: string, memberIds: string[]): Promis
  * @returns {Promise<Object>} El proyecto actualizado
  */
 const removeProjectMembers = async (projectId: string, memberIds: string[]): Promise<any> => {
-  return fetchWithAuth(`/api/projects/${projectId}/members`, {
-    method: 'DELETE',
-    body: JSON.stringify({ members: memberIds })
-  });
+  console.log('Eliminando miembros mediante API:', projectId, memberIds);
+  try {
+    const response = await fetchWithAuth(`/api/projects/${projectId}/members`, {
+      method: 'DELETE',
+      body: JSON.stringify({ memberIds })
+    });
+    console.log('Respuesta de eliminación de miembros:', response);
+    return response;
+  } catch (error) {
+    console.error('Error en API al eliminar miembros:', error);
+    // Si falla la API, proporcionar una implementación de respaldo usando el estado local
+    console.log('Recurriendo a implementación de respaldo');
+    
+    // Obtenemos el proyecto actual
+    const project = await getProjectById(projectId);
+    if (!project) {
+      throw new Error('Proyecto no encontrado');
+    }
+    
+    // Filtramos los miembros
+    const updatedMembers = project.members.filter((id: string) => !memberIds.includes(id));
+    
+    // Actualizamos el proyecto
+    return updateProject(projectId, { members: updatedMembers });
+  }
 };
 
 // Exportar las funciones
 export {
   login,
   logout,
-  isAuthenticated,
   getCurrentUser,
   getUsers,
+  getUserById,
   getProjects,
   getProjectById,
   createProject,

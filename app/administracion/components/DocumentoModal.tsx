@@ -54,28 +54,62 @@ export default function DocumentoModal({ isOpen, onClose }: DocumentoModalProps)
     
     if (!currentUser || !selectedFile) return;
     
+    // Verificar que el título no esté vacío
+    if (!formData.titulo || formData.titulo.trim() === '') {
+      alert('El título es obligatorio');
+      return;
+    }
+    
     setIsUploading(true);
     
     try {
-      // Simular una carga
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Crear el FormData para subir el archivo
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', selectedFile);
+      uploadFormData.append('userId', currentUser.id);
       
-      // URL simulada
-      const fakeUrl = `/documentos/${selectedFile.name}`;
-      
-      // Agregar documento al store
-      addDocumento({
-        titulo: formData.titulo,
-        descripcion: formData.descripcion,
-        tipo: formData.tipo,
-        url: fakeUrl,
-        subidoPor: currentUser.id,
-        tamaño: selectedFile.size
+      // Realizar la carga real del documento
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData
       });
+      
+      if (!response.ok) {
+        throw new Error(`Error al subir el archivo: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Documento subido exitosamente:', data);
+      
+      try {
+        // Verificar que hay un título antes de agregar
+        if (!formData.titulo || formData.titulo.trim() === '') {
+          throw new Error('El documento debe tener un título');
+        }
+        
+        console.log('Datos del formulario:', formData);
+        
+        // Agregar documento al store con URL real
+        const resultado = addDocumento({
+          titulo: formData.titulo,
+          descripcion: formData.descripcion || '',
+          tipo: formData.tipo,
+          url: data.url || `/api/attachments/${data.id}/download`,
+          subidoPor: currentUser.id,
+          tamaño: selectedFile.size,
+          attachmentId: data.id // Guardar el ID del attachment para futura referencia
+        });
+        
+        console.log('Documento agregado al store:', resultado);
+      } catch (storeError) {
+        console.error('Error al agregar documento al store:', storeError);
+        alert(`Error al registrar el documento: ${storeError.message}`);
+      }
       
       onClose();
     } catch (error) {
       console.error('Error al subir el documento:', error);
+      alert(`Error al subir el documento: ${error.message}`);
     } finally {
       setIsUploading(false);
     }

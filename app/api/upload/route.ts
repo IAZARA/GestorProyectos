@@ -22,12 +22,19 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (!projectId || !userId) {
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Se requiere projectId y userId' },
+        { error: 'Se requiere el userId' },
         { status: 400 }
       );
     }
+    
+    // ProjectId es opcional para documentos administrativos
+    console.log("Datos recibidos:", { 
+      fileName: file.name, 
+      userId, 
+      projectId: projectId || "No proporcionado" 
+    });
     
     // Obtener la extensión del archivo
     const fileExtension = file.name.split('.').pop() || '';
@@ -54,21 +61,31 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, buffer);
     console.log(`Archivo guardado en: ${filePath}`);
     
-    // Guardar la información del archivo en la base de datos PostgreSQL
-    const attachment = await prisma.attachment.create({
-      data: {
-        fileName: fileName,
-        originalName: file.name,
-        mimeType: file.type,
-        size: file.size,
-        path: filePath,
+    // Preparar los datos básicos
+    let attachmentData = {
+      fileName: fileName,
+      originalName: file.name,
+      mimeType: file.type,
+      size: file.size,
+      path: filePath,
+      user: {
+        connect: { id: userId }
+      }
+    };
+    
+    // Agregar el proyecto solo si se proporciona un projectId
+    if (projectId) {
+      attachmentData = {
+        ...attachmentData,
         project: {
           connect: { id: projectId }
-        },
-        user: {
-          connect: { id: userId }
         }
-      }
+      };
+    }
+    
+    // Guardar la información del archivo en la base de datos PostgreSQL
+    const attachment = await prisma.attachment.create({
+      data: attachmentData
     });
     
     console.log(`Attachment guardado en la base de datos: ${JSON.stringify(attachment)}`);

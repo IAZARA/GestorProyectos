@@ -7,10 +7,15 @@ const http = require('http');
 const NotificationService = require('./notification-service');
 
 // Puerto para el servidor de WebSockets
-const PORT = process.env.WEBSOCKET_PORT || 3001;
+const PORT = process.env.WEBSOCKET_PORT || 3000; // Cambiado a 3000 para coincidir con el cliente
 
 // Crear servidor HTTP
 const server = http.createServer((req, res) => {
+  // Habilitar CORS para desarrollo local
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   // Respuesta simple para verificar que el servidor está funcionando
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });

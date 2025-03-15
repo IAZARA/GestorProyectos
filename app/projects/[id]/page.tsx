@@ -1,76 +1,138 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useProjectStore } from '../../../store/projectStore';
+import { useProjectStore, syncProjectStore } from '../../../store/projectStore';
 import { useUserStore } from '../../../store/userStore';
-import KanbanBoard from '../../components/projects/KanbanBoard';
-import AttachmentsList from '../../components/projects/AttachmentsList';
-import CollaborativeWiki from '../../components/projects/CollaborativeWiki';
-import { Calendar, Users, FileText, Kanban, Book, ArrowLeft, UserPlus, X, Search, Check, UserMinus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Users, FileText, Kanban, Book } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
-import DeleteProjectModal from '../../components/projects/DeleteProjectModal';
 import { User } from '../../../types/user';
 
-type TabType = 'overview' | 'kanban' | 'wiki' | 'files';
+// Importar componentes reales
+import KanbanBoard from '../../components/projects/KanbanBoard';
+import CollaborativeWiki from '../../components/projects/CollaborativeWiki';
+import AttachmentsList from '../../components/projects/AttachmentsList';
+import MemberManagement from '../../components/projects/MemberManagement';
+
+// Componente de gestión de miembros simplificado
+const MembersList = ({ project, projectMembers, projectCreator, users, getUserById }: { 
+  project: any, 
+  projectMembers: Record<string, User>,
+  projectCreator: User | null,
+  users: User[],
+  getUserById: (id: string) => Promise<User | undefined>
+}) => {
+  // Mostrar información del creador si está disponible
+  const creatorId = typeof project.createdBy === 'object' 
+    ? project.createdBy.id 
+    : project.createdBy;
+
+  // Preparar y mostrar las iniciales del usuario
+  const getInitials = (user: User | null | undefined) => {
+    if (!user || !user.firstName || !user.lastName) return '??';
+    return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`;
+  };
+
+  // Preparar y mostrar el nombre completo del usuario
+  const getFullName = (user: User | null | undefined) => {
+    if (!user) return 'Usuario Desconocido';
+    if (!user.firstName && !user.lastName) return `Usuario ${user.id?.substring(0, 4) || ''}`;
+    return `${user.firstName || ''} ${user.lastName || ''}`;
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <h2 className="text-xl font-medium mb-4">Gestión de Miembros</h2>
+      
+      {/* Mostrar creador del proyecto */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium mb-3">Creador del Proyecto</h3>
+        <div className="flex items-center p-3 border rounded-lg mb-6 bg-blue-50">
+          <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center mr-3">
+            <span className="text-blue-700 font-medium">
+              {getInitials(projectCreator)}
+            </span>
+          </div>
+          <div className="flex-grow">
+            <p className="font-medium">{getFullName(projectCreator)}</p>
+            {projectCreator?.email && (
+              <p className="text-sm text-blue-700">{projectCreator.email}</p>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <h3 className="text-lg font-medium mb-3">Miembros Actuales ({project.members.length})</h3>
+        
+        {project.members.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {project.members.slice(0, 9).map((memberId: string) => {
+              // Si el miembro es un objeto, obtener el ID
+              const id = typeof memberId === 'object' ? memberId.id : memberId;
+              if (!id) return null;
+              
+              // Intentar obtener el miembro de varias fuentes
+              const member = projectMembers[id] || 
+                            users.find(u => u.id === id) || 
+                            (creatorId === id ? projectCreator : null);
+              
+              return (
+                <div key={id} className="flex items-center p-3 border rounded-lg">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                    <span className="text-gray-500 font-medium">
+                      {getInitials(member)}
+                    </span>
+                  </div>
+                  <div className="flex-grow">
+                    <p className="font-medium">{getFullName(member)}</p>
+                    {member?.email && (
+                      <p className="text-sm text-gray-500">{member.email}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            
+            {project.members.length > 9 && (
+              <div className="flex items-center p-3 border rounded-lg">
+                <p className="text-gray-500">y {project.members.length - 9} más...</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-gray-500">No hay miembros asignados a este proyecto.</p>
+        )}
+      </div>
+      
+      <p className="text-blue-600">La gestión completa de miembros estará disponible pronto.</p>
+    </div>
+  );
+};
+
+type TabType = 'overview' | 'kanban' | 'wiki' | 'files' | 'members';
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { projects, getProjectById, updateProject, currentProject, setCurrentProject } = useProjectStore();
+  const { getProjectById, currentProject, setCurrentProject } = useProjectStore();
   const { users, getUserById, currentUser, checkAuthState } = useUserStore();
   
   const [activeTab, setActiveTab] = useState<TabType>('overview');
-  const [showMemberModal, setShowMemberModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [projectMembers, setProjectMembers] = useState<Record<string, User>>({});
   const [projectCreator, setProjectCreator] = useState<User | null>(null);
+  const [projectMembers, setProjectMembers] = useState<Record<string, User>>({});
 
   // Obtener el ID del proyecto de los parámetros
   const projectId = params?.id as string;
   
-  // Cargar datos de usuarios para el proyecto
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (currentProject) {
-        // Cargar datos del creador
-        if (currentProject.createdBy) {
-          try {
-            const creator = await getUserById(currentProject.createdBy);
-            if (creator) {
-              setProjectCreator(creator);
-            }
-          } catch (error) {
-            console.error('Error al cargar datos del creador:', error);
-          }
-        }
-        
-        // Cargar datos de los miembros
-        const membersData: Record<string, User> = {};
-        for (const memberId of currentProject.members) {
-          try {
-            const member = await getUserById(memberId);
-            if (member) {
-              membersData[memberId] = member;
-            }
-          } catch (error) {
-            console.error(`Error al cargar datos del miembro ${memberId}:`, error);
-          }
-        }
-        setProjectMembers(membersData);
-      }
-    };
-    
-    loadUserData();
-  }, [currentProject, getUserById]);
-  
   // Verificar la autenticación y cargar el proyecto
   useEffect(() => {
-    const checkAuthAndLoadProject = async () => {
-      // Verificar el estado de autenticación
+    const loadProject = async () => {
+      console.log("Cargando proyecto y datos de usuarios...");
+      
+      // Forzar sincronización del store de proyectos para asegurar datos actualizados
+      syncProjectStore();
+      
       if (!currentUser) {
         try {
           await checkAuthState();
@@ -79,39 +141,167 @@ export default function ProjectDetailPage() {
           router.push('/login');
           return;
         }
-      }
-      
-      // Si llegamos aquí, verificamos si el usuario está autenticado
-      if (!currentUser) {
-        console.log('No hay usuario autenticado, redirigiendo a login...');
-        router.push('/login');
-        return;
-      }
-      
-      setAuthChecked(true);
-      
-      // Cargar el proyecto
-      const project = getProjectById(projectId);
-      
-      if (project) {
-        setCurrentProject(projectId);
         
-        // Inicializar los usuarios seleccionados con los miembros actuales del proyecto
-        setSelectedUsers(project.members);
+        if (!currentUser) {
+          router.push('/login');
+          return;
+        }
+      }
+      
+      try {
+        // Cargar todos los usuarios primero para asegurar disponibilidad
+        if (!users || users.length === 0) {
+          // Cargar usuarios directamente desde la función expuesta en el store
+          console.log("No hay usuarios cargados, intentando cargar desde el servidor...");
+          await useUserStore.getState().fetchUsers();
+          console.log("Usuarios cargados del servidor:", useUserStore.getState().users.length);
+        }
+        
+        // Cargar el proyecto
+        const project = getProjectById(projectId);
+        
+        if (project) {
+          console.log("Proyecto encontrado:", project.name);
+          setCurrentProject(projectId);
+          
+          // Determinar creatorId
+          let creatorId;
+          if (typeof project.createdBy === 'object' && project.createdBy !== null) {
+            creatorId = project.createdBy.id;
+          } else {
+            creatorId = project.createdBy;
+          }
+          
+          console.log("ID del creador:", creatorId);
+          
+          // Asegurar que creatorId sea un string válido
+          if (!creatorId) {
+            console.error("Error: creatorId es null o undefined");
+            creatorId = "unknown";
+          }
+          
+          // Primero buscar el creador en la lista actualizada de usuarios
+          const updatedUserList = useUserStore.getState().users;
+          const creatorFromUpdatedList = updatedUserList.find(u => u.id === creatorId);
+          
+          if (creatorFromUpdatedList) {
+            console.log("Creador encontrado en la lista actualizada:", creatorFromUpdatedList.firstName);
+            setProjectCreator(creatorFromUpdatedList);
+          } else {
+            // Si no está en la lista actualizada, intentar obtenerlo directamente
+            try {
+              console.log("Buscando creador directamente por ID:", creatorId);
+              const creator = await getUserById(creatorId);
+              if (creator) {
+                console.log("Creador cargado directamente:", creator.firstName);
+                setProjectCreator(creator);
+              } else {
+                console.log("No se encontró información del creador en la API");
+                // En caso de no encontrar el creador, crear un objeto con datos mínimos
+                setProjectCreator({
+                  id: creatorId,
+                  firstName: "Usuario",
+                  lastName: "Desconocido",
+                  email: "desconocido@example.com",
+                  role: 'Usuario'
+                } as User);
+              }
+            } catch (e) {
+              console.error("Error al cargar el creador:", e);
+              // En caso de error, crear un objeto con datos mínimos
+              setProjectCreator({
+                id: creatorId,
+                firstName: "Usuario",
+                lastName: "Desconocido",
+                email: "desconocido@example.com",
+                role: 'Usuario'
+              } as User);
+            }
+          }
+          
+          // Normalizar miembros (convertir objetos a IDs)
+          const normalizedMembers = project.members.map(member => {
+            return typeof member === 'object' && member !== null ? member.id : member;
+          }).filter(Boolean);
+          
+          // Eliminar duplicados
+          const uniqueMembers = [...new Set(normalizedMembers)];
+          project.members = uniqueMembers;
+          
+          console.log("Miembros del proyecto (normalizados):", uniqueMembers);
+          
+          // Cargar información de miembros desde múltiples fuentes
+          const memberData: Record<string, User> = {};
+          const allUsers = useUserStore.getState().users;
+          
+          console.log("Buscando información de miembros. Usuarios disponibles:", allUsers.length);
+          
+          // Agregar el creador a los datos de miembros si ya lo tenemos
+          if (creatorFromUpdatedList) {
+            memberData[creatorId] = creatorFromUpdatedList;
+          } else if (projectCreator) {
+            memberData[creatorId] = projectCreator;
+          }
+          
+          // Procesar cada miembro
+          for (const memberId of uniqueMembers) {
+            // Si ya tenemos este miembro (por ejemplo, si es el creador), continuar
+            if (memberData[memberId]) continue;
+            
+            // Buscar en la lista completa de usuarios
+            const memberFromList = allUsers.find(u => u.id === memberId);
+            
+            if (memberFromList) {
+              console.log(`Miembro ${memberId} encontrado en la lista:`, memberFromList.firstName);
+              memberData[memberId] = memberFromList;
+            } else {
+              // Si no está en la lista, intentar obtenerlo directamente
+              try {
+                console.log(`Buscando miembro ${memberId} directamente...`);
+                const member = await getUserById(memberId);
+                if (member) {
+                  console.log(`Miembro ${memberId} cargado directamente:`, member.firstName);
+                  memberData[memberId] = member;
+                } else {
+                  console.log(`No se encontró información para el miembro ${memberId}`);
+                  // Crear un usuario mínimo para evitar "Cargando..."
+                  memberData[memberId] = {
+                    id: memberId,
+                    firstName: "Usuario",
+                    lastName: memberId.substring(0, 4),
+                    email: `usuario-${memberId.substring(0, 4)}@example.com`,
+                    role: 'Usuario'
+                  } as User;
+                }
+              } catch (e) {
+                console.error(`Error al cargar miembro ${memberId}:`, e);
+                // Crear un usuario mínimo para evitar "Cargando..."
+                memberData[memberId] = {
+                  id: memberId,
+                  firstName: "Usuario",
+                  lastName: memberId.substring(0, 4),
+                  email: `usuario-${memberId.substring(0, 4)}@example.com`,
+                  role: 'Usuario'
+                } as User;
+              }
+            }
+          }
+          
+          console.log(`Información cargada para ${Object.keys(memberData).length} miembros`);
+          setProjectMembers(memberData);
+          setIsLoading(false);
+        } else {
+          console.error("Proyecto no encontrado:", projectId);
+          router.push('/projects');
+        }
+      } catch (error) {
+        console.error("Error al cargar el proyecto:", error);
         setIsLoading(false);
-      } else {
-        // Si el proyecto no existe, redirigir a la lista de proyectos
-        console.error(`Proyecto con ID ${projectId} no encontrado`);
-        router.push('/projects');
       }
     };
     
-    if (projectId) {
-      checkAuthAndLoadProject();
-    } else {
-      router.push('/projects');
-    }
-  }, [projectId, currentUser, router, getProjectById, setCurrentProject, checkAuthState]);
+    loadProject();
+  }, [projectId, currentUser, router, getProjectById, setCurrentProject, checkAuthState, getUserById, users]);
   
   if (isLoading) {
     return (
@@ -138,7 +328,7 @@ export default function ProjectDetailPage() {
     );
   }
   
-  const formatDate = (date: Date) => {
+  const formatDate = (date: any) => {
     return new Date(date).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -160,11 +350,21 @@ export default function ProjectDetailPage() {
   };
   
   const calculateProgress = () => {
-    const totalTasks = currentProject.tasks.length;
-    if (totalTasks === 0) return 0;
+    // Verificar que tasks sea un array
+    if (!currentProject.tasks || !Array.isArray(currentProject.tasks) || currentProject.tasks.length === 0) {
+      return 0;
+    }
     
-    const completedTasks = currentProject.tasks.filter(task => task.status === 'Completado').length;
-    return Math.round((completedTasks / totalTasks) * 100);
+    // Contar tareas completadas, asegurando que estamos trabajando con una propiedad status válida
+    const completedTasks = currentProject.tasks.filter((task: any) => 
+      task && (task.status === 'Completado' || task.status === 'completado')
+    ).length;
+    
+    // Calcular porcentaje
+    const percentage = Math.round((completedTasks / currentProject.tasks.length) * 100);
+    console.log(`Progreso del proyecto: ${completedTasks}/${currentProject.tasks.length} tareas completadas (${percentage}%)`);
+    
+    return percentage;
   };
   
   const getStatusColor = (status: string) => {
@@ -179,28 +379,6 @@ export default function ProjectDetailPage() {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  
-  const handleToggleUser = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
-  };
-  
-  const handleSaveMembers = () => {
-    if (currentProject) {
-      updateProject(currentProject.id, { members: selectedUsers });
-      setShowMemberModal(false);
-    }
-  };
-  
-  const filteredUsers = users.filter(user => 
-    (user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     user.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    user.id !== currentProject.createdBy // No mostrar al creador del proyecto en la lista
-  );
   
   const renderTabContent = () => {
     switch (activeTab) {
@@ -261,67 +439,61 @@ export default function ProjectDetailPage() {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-medium">Miembros del proyecto</h3>
-                {currentUser?.role === 'Administrador' || 
-                  (currentProject && currentProject.createdBy === currentUser?.id) && (
-                  <button
-                    onClick={() => setShowMemberModal(true)}
-                    className="flex items-center text-blue-600 hover:text-blue-800"
-                  >
-                    <UserPlus size={18} className="mr-1" />
-                    <span>Gestionar miembros</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => setActiveTab('members')}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  Ver todos
+                </button>
               </div>
               
               {currentProject.members.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {currentProject.members.map(memberId => {
-                    const member = projectMembers[memberId];
-                    if (!member) return (
-                      <div key={memberId} className="flex items-center p-3 border rounded-lg">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                          <span className="text-gray-500 font-medium">...</span>
-                        </div>
-                        <div className="flex-grow">
-                          <p className="font-medium">Cargando...</p>
-                        </div>
-                      </div>
-                    );
+                  {currentProject.members.slice(0, 6).map((memberId: string) => {
+                    const id = typeof memberId === 'object' ? memberId.id : memberId;
+                    if (!id) return null;
+                    
+                    // Intentar obtener el miembro de varias fuentes
+                    const creatorId = typeof currentProject.createdBy === 'object' 
+                      ? currentProject.createdBy.id 
+                      : currentProject.createdBy;
+                      
+                    const member = projectMembers[id] || 
+                                  users.find(u => u.id === id) || 
+                                  (creatorId === id ? projectCreator : null);
+                    
+                    // Preparar y mostrar las iniciales del usuario
+                    const getInitials = (user: User | null | undefined) => {
+                      if (!user || !user.firstName || !user.lastName) return '??';
+                      return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`;
+                    };
+                    
+                    // Preparar y mostrar el nombre completo del usuario
+                    const getFullName = (user: User | null | undefined) => {
+                      if (!user) return 'Usuario Desconocido';
+                      if (!user.firstName && !user.lastName) return `Usuario ${user.id?.substring(0, 4) || ''}`;
+                      return `${user.firstName || ''} ${user.lastName || ''}`;
+                    };
                     
                     return (
-                      <div key={memberId} className="flex items-center p-3 border rounded-lg">
-                        {member.photoUrl ? (
-                          <img 
-                            src={member.photoUrl} 
-                            alt={`${member.firstName} ${member.lastName}`}
-                            className="w-10 h-10 rounded-full mr-3"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                            <span className="text-gray-500 font-medium">
-                              {member.firstName.charAt(0)}{member.lastName.charAt(0)}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex-grow">
-                          <p className="font-medium">{member.firstName} {member.lastName}</p>
-                          <p className="text-sm text-gray-500">{member.expertise}</p>
+                      <div key={id} className="flex items-center p-3 border rounded-lg">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                          <span className="text-gray-500 font-medium">
+                            {getInitials(member)}
+                          </span>
                         </div>
-                        {currentUser?.role === 'Administrador' && memberId !== currentProject.createdBy && (
-                          <button
-                            onClick={() => {
-                              const updatedMembers = currentProject.members.filter(id => id !== memberId);
-                              updateProject(currentProject.id, { members: updatedMembers });
-                            }}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            title="Eliminar miembro"
-                          >
-                            <UserMinus size={18} />
-                          </button>
-                        )}
+                        <div className="flex-grow">
+                          <p className="font-medium">{getFullName(member)}</p>
+                        </div>
                       </div>
                     );
                   })}
+                  
+                  {currentProject.members.length > 6 && (
+                    <div className="flex items-center justify-center p-3 border rounded-lg">
+                      <p className="text-blue-600">+{currentProject.members.length - 6} más</p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-gray-500">No hay miembros asignados a este proyecto.</p>
@@ -335,6 +507,14 @@ export default function ProjectDetailPage() {
         return <CollaborativeWiki projectId={projectId} />;
       case 'files':
         return <AttachmentsList projectId={projectId} />;
+      case 'members':
+        return <MemberManagement 
+          projectId={projectId}
+          currentUser={currentUser}
+          projectMembers={projectMembers}
+          users={users || []}
+          currentProject={currentProject}
+        />;
       default:
         return null;
     }
@@ -359,20 +539,10 @@ export default function ProjectDetailPage() {
               <h1 className="text-2xl md:text-3xl font-bold">{currentProject.name}</h1>
               <p className="text-gray-500 mt-1">Creado el {formatDate(currentProject.createdAt)}</p>
             </div>
-            <div className="mt-4 md:mt-0 flex items-center">
+            <div className="mt-4 md:mt-0">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentProject.status)}`}>
                 {currentProject.status.replace('_', ' ')}
               </span>
-              
-              {currentUser?.role === 'Administrador' && (
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="ml-4 flex items-center text-red-600 hover:text-red-800 px-3 py-1 rounded-md border border-red-200 hover:bg-red-50"
-                >
-                  <Trash2 size={16} className="mr-1" />
-                  <span>Eliminar</span>
-                </button>
-              )}
             </div>
           </div>
           
@@ -387,7 +557,7 @@ export default function ProjectDetailPage() {
                 }`}
               >
                 <FileText size={18} className="mr-2" />
-                Información general
+                Información
               </button>
               <button
                 onClick={() => setActiveTab('kanban')}
@@ -398,7 +568,7 @@ export default function ProjectDetailPage() {
                 }`}
               >
                 <Kanban size={18} className="mr-2" />
-                Tablero Kanban
+                Kanban
               </button>
               <button
                 onClick={() => setActiveTab('wiki')}
@@ -422,6 +592,17 @@ export default function ProjectDetailPage() {
                 <FileText size={18} className="mr-2" />
                 Archivos
               </button>
+              <button
+                onClick={() => setActiveTab('members')}
+                className={`px-4 py-3 flex items-center whitespace-nowrap ${
+                  activeTab === 'members' 
+                    ? 'border-b-2 border-blue-600 text-blue-600' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Users size={18} className="mr-2" />
+                Miembros
+              </button>
             </div>
           </div>
           
@@ -429,136 +610,6 @@ export default function ProjectDetailPage() {
             {renderTabContent()}
           </div>
         </div>
-        
-        {/* Modal para gestionar miembros */}
-        {showMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">Gestionar miembros del proyecto</h3>
-                <button
-                  onClick={() => setShowMemberModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              
-              <div className="mb-4">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={18} className="text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Buscar usuarios por nombre o email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-              
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-500 mb-2">Usuarios seleccionados ({selectedUsers.length})</h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedUsers.map(userId => {
-                    const user = projectMembers[userId] || users.find(u => u.id === userId);
-                    if (!user) return null;
-                    
-                    return (
-                      <div 
-                        key={userId}
-                        className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center"
-                      >
-                        <span>{user.firstName} {user.lastName}</span>
-                        {userId !== currentProject.createdBy && (
-                          <button
-                            onClick={() => handleToggleUser(userId)}
-                            className="ml-1 text-blue-600 hover:text-blue-800"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-500 mb-2">Usuarios disponibles</h4>
-                <div className="max-h-60 overflow-y-auto">
-                  {filteredUsers.length > 0 ? (
-                    <div className="space-y-2">
-                      {filteredUsers.map(user => (
-                        <div 
-                          key={user.id}
-                          className={`flex items-center p-2 rounded-md cursor-pointer ${
-                            selectedUsers.includes(user.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
-                          }`}
-                          onClick={() => handleToggleUser(user.id)}
-                        >
-                          {user.photoUrl ? (
-                            <img 
-                              src={user.photoUrl} 
-                              alt={`${user.firstName} ${user.lastName}`}
-                              className="w-8 h-8 rounded-full mr-3"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                              <span className="text-gray-500 font-medium">
-                                {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex-grow">
-                            <p className="font-medium">{user.firstName} {user.lastName}</p>
-                            <p className="text-xs text-gray-500">{user.email} • {user.expertise}</p>
-                          </div>
-                          <div className="ml-2">
-                            {selectedUsers.includes(user.id) ? (
-                              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                <Check size={14} className="text-white" />
-                              </div>
-                            ) : (
-                              <div className="w-6 h-6 border-2 border-gray-300 rounded-full"></div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">No se encontraron usuarios</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setShowMemberModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 mr-2 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveMembers}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Guardar cambios
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Modal para eliminar proyecto */}
-        <DeleteProjectModal
-          projectId={currentProject.id}
-          projectName={currentProject.name}
-          isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-        />
       </div>
     </ProtectedRoute>
   );

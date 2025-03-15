@@ -90,15 +90,28 @@ export default function AdministracionPage() {
   });
   
   // Filtrar documentos según término de búsqueda
-  const filteredDocumentos = documentos.filter(doc => {
-    return doc.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
-           doc.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
-  }).sort((a, b) => {
-    // Asegurarse de que fechaSubida sea un objeto Date antes de llamar a getTime()
-    const fechaA = a.fechaSubida instanceof Date ? a.fechaSubida : new Date(a.fechaSubida);
-    const fechaB = b.fechaSubida instanceof Date ? b.fechaSubida : new Date(b.fechaSubida);
-    return fechaB.getTime() - fechaA.getTime(); // Ordenar por fecha descendente
-  });
+  const filteredDocumentos = documentos
+    .filter(doc => {
+      // Verificar que el documento tenga todas las propiedades necesarias
+      if (!doc || typeof doc.titulo !== 'string' || typeof doc.descripcion !== 'string') {
+        console.warn('Documento con formato inválido:', doc);
+        return false;
+      }
+      
+      return doc.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
+             doc.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+    })
+    .sort((a, b) => {
+      try {
+        // Asegurarse de que fechaSubida sea un objeto Date antes de llamar a getTime()
+        const fechaA = a.fechaSubida instanceof Date ? a.fechaSubida : new Date(a.fechaSubida || Date.now());
+        const fechaB = b.fechaSubida instanceof Date ? b.fechaSubida : new Date(b.fechaSubida || Date.now());
+        return fechaB.getTime() - fechaA.getTime(); // Ordenar por fecha descendente
+      } catch (err) {
+        console.error('Error al ordenar documentos:', err, { a, b });
+        return 0; // En caso de error, no cambiar el orden
+      }
+    });
   
   // Formatear tamaño de archivo
   const formatFileSize = (bytes: number) => {
@@ -586,6 +599,15 @@ export default function AdministracionPage() {
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 flex items-center text-sm"
+                    onClick={(e) => {
+                      // Si es una URL simulada /documentos/, prevenir descarga
+                      if (doc.url.startsWith('/documentos/')) {
+                        e.preventDefault();
+                        alert('Esta es una demo. La funcionalidad de descarga está disponible solo para documentos reales.');
+                      } else {
+                        console.log('Descargando documento con URL:', doc.url);
+                      }
+                    }}
                   >
                     <Download size={14} className="mr-1" />
                     Descargar

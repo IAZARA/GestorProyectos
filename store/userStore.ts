@@ -1,11 +1,14 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { User, Role, Expertise } from '../types/user';
-import { login as apiLogin, logout as apiLogout, getCurrentUser, getUsers as apiGetUsers, getProjects } from '../lib/api';
+import { login as apiLogin, logout as apiLogout, getCurrentUser, getUsers as apiGetUsers, getProjects, getUserById as apiGetUserById } from '../lib/api';
+import { enhancedStorage } from '../lib/localStorage';
 
 interface UserState {
   users: User[];
   currentUser: User | null;
   isLoading: boolean;
+  token: string | null;
   
   // Acciones
   fetchUsers: () => Promise<void>;
@@ -20,19 +23,32 @@ interface UserState {
   resetUserPassword: (email: string, newPassword: string) => Promise<boolean>;
   getUsers: () => User[];
   checkAuthState: () => Promise<void>;
+  setToken: (token: string | null) => void;
 }
 
+// Función auxiliar para sincronizar explícitamente el store
+export const syncUserStore = () => {
+  const state = useUserStore.getState();
+  useUserStore.setState({ ...state });
+  console.log("[UserStore] Sincronización forzada");
+};
+
 // Crear el store
-const useUserStore = create<UserState>()((set, get) => {
-  return {
-    users: [],
-    currentUser: null,
-    isLoading: false,
+const useUserStore = create<UserState>()(
+  persist(
+    (set, get) => ({
+      users: [],
+      currentUser: null,
+      isLoading: false,
+      token: null,
+    
+    setToken: (token: string | null) => {
+      set({ token });
+    },
     
     checkAuthState: async () => {
       try {
-        // Verificar si hay un token en localStorage
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const token = get().token;
         
         if (!token) {
           console.log('No hay token de autenticación');
@@ -60,37 +76,45 @@ const useUserStore = create<UserState>()((set, get) => {
             }
           } else {
             console.log('Token inválido o expirado');
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('token');
-            }
-            set({ currentUser: null });
+            set({ currentUser: null, token: null });
           }
         } catch (apiError) {
           console.error('Error al verificar autenticación con la API:', apiError);
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('token');
-          }
-          set({ currentUser: null });
+          set({ currentUser: null, token: null });
         }
       } catch (error) {
         console.error('Error al verificar el estado de autenticación:', error);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-        }
-        set({ currentUser: null });
+        set({ currentUser: null, token: null });
       }
     },
     
     fetchUsers: async () => {
       try {
-        set({ isLoading: true });
+        // Evitar múltiples llamadas simultáneas
+        if (get().isLoading) {
+          console.log('Ya hay una carga de usuarios en progreso, esperando...');
+          return;
+        }
         
-        // Obtener usuarios usando la API
-        const usersData = await apiGetUsers();
+        set({ isLoading: true });
+        console.log('Iniciando carga de usuarios...');
+        
+        // Limitar el tiempo de espera para evitar bloqueos
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Tiempo de espera agotado')), 10000);
+        });
+        
+        // Competencia entre la carga de datos y el timeout
+        const usersData = await Promise.race([
+          apiGetUsers(),
+          timeoutPromise
+        ]) as User[];
         
         if (usersData) {
+          console.log(`Cargados ${usersData.length} usuarios correctamente`);
           set({ users: usersData, isLoading: false });
         } else {
+          console.warn('No se obtuvieron datos de usuarios');
           set({ isLoading: false });
         }
       } catch (error) {
@@ -104,7 +128,6 @@ const useUserStore = create<UserState>()((set, get) => {
     },
     
     addUser: async (userData) => {
-      // Implementación actual (mantener por ahora)
       const { users } = get();
       const newUser: User = {
         id: Math.random().toString(36).substring(7),
@@ -115,7 +138,6 @@ const useUserStore = create<UserState>()((set, get) => {
     },
     
     updateUser: async (id, userData) => {
-      // Implementación actual (mantener por ahora)
       const { users } = get();
       const userIndex = users.findIndex(user => user.id === id);
       
@@ -129,7 +151,6 @@ const useUserStore = create<UserState>()((set, get) => {
       
       set({ users: updatedUsers });
       
-      // Si el usuario actualizado es el usuario actual, actualizar también currentUser
       const { currentUser } = get();
       if (currentUser && currentUser.id === id) {
         set({ currentUser: updatedUser });
@@ -139,7 +160,6 @@ const useUserStore = create<UserState>()((set, get) => {
     },
     
     resetUserPassword: async (email, newPassword) => {
-      // Implementación actual (mantener por ahora)
       const { users } = get();
       const userIndex = users.findIndex(user => user.email === email);
       
@@ -147,7 +167,6 @@ const useUserStore = create<UserState>()((set, get) => {
         return false;
       }
       
-      // En una aplicación real, aquí se haría una llamada a la API para cambiar la contraseña
       const updatedUsers = [...users];
       updatedUsers[userIndex] = { ...updatedUsers[userIndex], password: newPassword };
       
@@ -156,10 +175,8 @@ const useUserStore = create<UserState>()((set, get) => {
     },
     
     deleteUser: async (id) => {
-      // Implementación actual (mantener por ahora)
       const { users, currentUser } = get();
       
-      // Verificar si el usuario a eliminar es el usuario actual
       if (currentUser && currentUser.id === id) {
         throw new Error('No puedes eliminar tu propio usuario mientras estás conectado');
       }
@@ -169,8 +186,58 @@ const useUserStore = create<UserState>()((set, get) => {
     },
     
     getUserById: async (id) => {
+      if (!id) {
+        console.error("getUserById: ID es null o undefined");
+        return undefined;
+      }
+      console.log(`getUserById: Buscando usuario con ID ${id}`);
       const { users } = get();
-      return users.find(user => user.id === id);
+      
+      // Primero buscar en el cache local
+      const localUser = users.find(user => user.id === id);
+      if (localUser) {
+        console.log(`getUserById: Usuario encontrado localmente: ${localUser.firstName} ${localUser.lastName}`);
+        return localUser;
+      }
+      
+      // Si no se encuentra localmente, intentar cargar todos los usuarios y buscar de nuevo
+      if (users.length === 0) {
+        console.log("getUserById: No hay usuarios en caché, intentando cargar todos");
+        try {
+          await get().fetchUsers();
+          
+          // Buscar en la lista actualizada
+          const freshUsers = get().users;
+          const freshUser = freshUsers.find(user => user.id === id);
+          if (freshUser) {
+            console.log(`getUserById: Usuario encontrado después de recargar: ${freshUser.firstName} ${freshUser.lastName}`);
+            return freshUser;
+          }
+        } catch (error) {
+          console.error("getUserById: Error al cargar usuarios:", error);
+        }
+      }
+      
+      // Si aún no se encuentra, intentar obtenerlo directamente de la API
+      console.log(`getUserById: Intentando obtener usuario ${id} directamente de la API`);
+      try {
+        const apiUser = await apiGetUserById(id);
+        if (apiUser) {
+          console.log(`getUserById: Usuario obtenido de la API: ${apiUser.firstName} ${apiUser.lastName}`);
+          
+          // Actualizar el caché local con este usuario
+          set(state => ({
+            users: [...state.users.filter(u => u.id !== id), apiUser]
+          }));
+          
+          return apiUser;
+        }
+      } catch (apiError) {
+        console.error(`getUserById: Error al obtener usuario ${id} de la API:`, apiError);
+      }
+      
+      console.log(`getUserById: No se encontró el usuario con ID ${id} en ninguna fuente`);
+      return undefined;
     },
     
     getUsersByRole: (role) => {
@@ -186,48 +253,53 @@ const useUserStore = create<UserState>()((set, get) => {
     login: async (email, password) => {
       try {
         set({ isLoading: true });
-        
         console.log(`Intentando iniciar sesión con: ${email}`);
         
-        // Usar la función de login de la API
         const userData = await apiLogin(email, password);
         
-        console.log('Datos recibidos del login:', userData);
-        
         if (userData && userData.token) {
-          // La API devuelve directamente el usuario con el token incluido
           console.log('Login exitoso:', userData);
-          set({ currentUser: userData, isLoading: false });
-          
-          // Cargar proyectos del usuario automáticamente después del login
-          try {
-            console.log('Cargando proyectos para el usuario después del login...');
-            const projects = await getProjects();
-            console.log(`Se cargaron ${projects.length} proyectos`);
-          } catch (projectError) {
-            console.error('Error al cargar proyectos después del login:', projectError);
-          }
-          
+          set({ 
+            currentUser: userData, 
+            isLoading: false,
+            token: userData.token 
+          });
           return userData;
-        } else {
-          console.error('Error en login: No se recibieron datos de usuario');
-          set({ isLoading: false });
-          return null;
         }
+        
+        console.log('Login fallido: datos de usuario inválidos');
+        set({ isLoading: false });
+        return null;
+        
       } catch (error) {
-        console.error('Error en login:', error);
+        console.error('Error durante el login:', error);
         set({ isLoading: false });
         return null;
       }
     },
     
     logout: () => {
-      // Usar la función de logout de la API
       apiLogout();
-      set({ currentUser: null });
+      set({ currentUser: null, token: null });
     }
-  };
-});
+  }),
+  {
+    name: 'user-storage',
+    partialize: (state) => ({
+      users: state.users,
+      currentUser: state.currentUser,
+      token: state.token
+    }),
+    onRehydrateStorage: () => (state) => {
+      console.log('[UserStore] Rehidratado con', state?.users?.length || 0, 'usuarios');
+      // Forzar sincronización después de rehidratar
+      setTimeout(() => {
+        syncUserStore();
+      }, 500);
+    },
+    // Usar el storage mejorado
+    storage: enhancedStorage
+  }
+));
 
-// Exportar el store para que pueda ser utilizado en otros componentes
 export { useUserStore };

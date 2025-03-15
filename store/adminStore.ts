@@ -170,11 +170,23 @@ export const useAdminStore = create<AdminState>()(
       
       // Acciones para documentos
       addDocumento: (documento) => {
+        // Validar datos necesarios
+        if (!documento || !documento.titulo) {
+          console.error('Error: Se intentó agregar un documento sin título', documento);
+          throw new Error('El documento debe tener un título');
+        }
+        
+        // Asegurar que la descripción es un string
+        const descripcion = documento.descripcion || '';
+        
         const newDocumento = {
           ...documento,
           id: uuidv4(),
-          fechaSubida: new Date()
+          fechaSubida: new Date(),
+          descripcion: descripcion // Garantizar que descripción es un string
         };
+        
+        console.log('Agregando nuevo documento al store:', newDocumento);
         
         set((state) => ({
           documentos: [...state.documentos, newDocumento]

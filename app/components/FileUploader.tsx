@@ -57,17 +57,29 @@ export default function FileUploader({ projectId, taskId, onUploadComplete }: Fi
         formData.append('taskId', taskId);
       }
 
-      const response = await fetch('/api/attachments', {
-        method: 'POST',
-        body: formData
-      });
+      // Intentar primero con el endpoint de attachments
+      let response;
+      try {
+        response = await fetch('/api/attachments', {
+          method: 'POST',
+          body: formData
+        });
+      } catch (err) {
+        console.log('Fallback al endpoint alternativo:', err);
+        // Si falla, intentar con el endpoint alternativo
+        response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al subir el archivo');
+        throw new Error(errorData.message || errorData.error || 'Error al subir el archivo');
       }
 
       const data = await response.json();
+      console.log('Archivo subido exitosamente:', data);
       onUploadComplete(data.id);
       setFile(null);
       

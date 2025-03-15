@@ -44,6 +44,7 @@ export interface Documento {
   fechaSubida: Date;
   subidoPor: string; // ID del usuario
   tamaño: number; // en bytes
+  attachmentId?: string; // ID del attachment en la base de datos (opcional)
 }
 
 // Estado de la administración

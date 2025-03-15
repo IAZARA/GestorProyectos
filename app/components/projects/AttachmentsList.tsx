@@ -1,8 +1,21 @@
 'use client';
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../../store/projectStore';
 import { useUserStore } from '../../../store/userStore';
-import { File, FileText, FileSpreadsheet, FileIcon, Trash2, Upload } from 'lucide-react';
+import { Upload, File, FileText, Download, Trash, Image, FileArchive, FileCode } from 'lucide-react';
+import { downloadAttachment, uploadAttachment } from '../../../lib/api';
+
+interface Attachment {
+  id: string;
+  fileName: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  userId: string;
+  projectId: string;
+  createdAt: Date;
+}
 
 interface AttachmentsListProps {
   projectId: string;
@@ -11,181 +24,243 @@ interface AttachmentsListProps {
 export default function AttachmentsList({ projectId }: AttachmentsListProps) {
   const { getProjectById, addAttachment, deleteAttachment } = useProjectStore();
   const { currentUser } = useUserStore();
+  const [project, setProject] = useState<any>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  
-  const project = getProjectById(projectId);
-  
-  if (!project || !currentUser) return null;
-  
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    setIsUploading(true);
-    
-    try {
-      // Obtener la URL base de la API
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Crear un FormData para enviar el archivo
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('projectId', projectId);
-        formData.append('userId', currentUser.id);
-        
-        // Enviar el archivo al servidor
-        const response = await fetch(`${API_BASE_URL}/api/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Error al subir el archivo: ${response.statusText}`);
+
+  // Formatear tamaño de archivo
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Formatear fecha
+  const formatDate = (date: Date | string) => {
+    return new Date(date).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Cargar el proyecto y sus archivos adjuntos
+  useEffect(() => {
+    const loadProject = async () => {
+      try {
+        const projectData = getProjectById(projectId);
+        if (projectData) {
+          setProject(projectData);
+          setAttachments(projectData.attachments || []);
         }
-        
-        const data = await response.json();
-        
-        // Crear un objeto de adjunto con los datos devueltos por el servidor
-        const attachment = {
-          id: data.id || `temp-${Date.now()}-${i}`,
-          fileName: data.fileName || `file-${Date.now()}-${i}`,
-          originalName: file.name,
-          mimeType: file.type,
-          size: file.size,
-          path: data.path || data.url || URL.createObjectURL(file),
-          userId: currentUser.id,
-          projectId
-        };
-        
-        // Añadir el adjunto al proyecto
-        addAttachment(projectId, attachment);
-        console.log(`Archivo subido exitosamente: ${attachment.originalName}`);
+      } catch (error) {
+        console.error('Error al cargar el proyecto:', error);
+      } finally {
+        setLoading(false);
       }
+    };
+
+    loadProject();
+  }, [projectId, getProjectById]);
+
+  // Función para subir archivos
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || !files.length || !currentUser) return;
+
+    setUploading(true);
+    const file = files[0];
+
+    // Preparar FormData para la carga
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('projectId', projectId);
+    formData.append('userId', currentUser.id);
+
+    // Subir el archivo
+    uploadAttachment(formData)
+      .then(attachmentData => {
+        // Añadir al store
+        addAttachment(projectId, {
+          ...attachmentData,
+          userId: currentUser.id
+        });
+
+        // Actualizar el estado local
+        const updatedProject = getProjectById(projectId);
+        if (updatedProject) {
+          setProject(updatedProject);
+          setAttachments(updatedProject.attachments || []);
+        }
+
+        // Limpiar el input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      })
+      .catch(error => {
+        console.error('Error al subir el archivo:', error);
+        alert('Hubo un error al subir el archivo. Por favor, inténtalo de nuevo.');
+      })
+      .finally(() => {
+        setUploading(false);
+      });
+  };
+
+  // Función para descargar archivos
+  const handleDownload = async (attachment: Attachment) => {
+    try {
+      const blob = await downloadAttachment(attachment.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
-      console.error('Error al subir los archivos:', error);
-      alert('Error al subir los archivos. Por favor, inténtelo de nuevo.');
-    } finally {
-      setIsUploading(false);
-      
-      // Limpiar el input de archivos
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      console.error('Error al descargar el archivo:', error);
+      alert('Hubo un error al descargar el archivo. Por favor, inténtalo de nuevo.');
+    }
+  };
+
+  // Función para eliminar archivos
+  const handleDelete = (attachmentId: string) => {
+    if (window.confirm('¿Está seguro de que desea eliminar este archivo?')) {
+      deleteAttachment(projectId, attachmentId);
+
+      // Actualizar el estado local
+      const updatedProject = getProjectById(projectId);
+      if (updatedProject) {
+        setProject(updatedProject);
+        setAttachments(updatedProject.attachments || []);
       }
     }
   };
-  
-  const handleDeleteAttachment = (attachmentId: string) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este archivo?')) {
-      deleteAttachment(projectId, attachmentId);
-    }
-  };
-  
+
+  // Determinar el icono según el tipo de archivo
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.includes('pdf')) {
-      return <FileText className="text-red-500" />;
-    } else if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('xlsx')) {
-      return <FileSpreadsheet className="text-green-500" />;
-    } else if (mimeType.includes('word') || mimeType.includes('document')) {
-      return <FileText className="text-blue-500" />;
+    if (mimeType.startsWith('image/')) {
+      return <Image size={20} className="text-blue-600" />;
+    } else if (mimeType.includes('pdf')) {
+      return <FileText size={20} className="text-red-600" />;
+    } else if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('tar')) {
+      return <FileArchive size={20} className="text-yellow-600" />;
+    } else if (mimeType.includes('javascript') || mimeType.includes('html') || mimeType.includes('css') || mimeType.includes('json')) {
+      return <FileCode size={20} className="text-green-600" />;
     } else {
-      return <File className="text-gray-500" />;
+      return <File size={20} className="text-gray-600" />;
     }
   };
-  
+
+  // Filtrar archivos por término de búsqueda
+  const filteredAttachments = attachments.filter(attachment => 
+    attachment.originalName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-medium">Documentos adjuntos</h3>
+        <h2 className="text-xl font-medium">Documentos Adjuntos</h2>
         <div>
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
             className="hidden"
-            multiple
+            accept="*/*"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+            disabled={uploading}
+            className="flex items-center bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            <Upload size={16} className="mr-2" />
-            {isUploading ? 'Subiendo...' : 'Subir archivos'}
+            {uploading ? (
+              <>
+                <span className="mr-2">Subiendo...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+              </>
+            ) : (
+              <>
+                <Upload size={16} className="mr-1" /> Subir Archivo
+              </>
+            )}
           </button>
         </div>
       </div>
       
-      {project.attachments && project.attachments.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {project.attachments.map(attachment => (
-            <div 
-              key={attachment.id} 
-              className="border rounded-lg p-4 flex items-start"
-            >
-              <div className="mr-3">
-                {getFileIcon(attachment.mimeType)}
+      {/* Buscador */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar archivos..."
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      
+      {/* Lista de archivos */}
+      {filteredAttachments.length > 0 ? (
+        <div className="border rounded divide-y">
+          {filteredAttachments.map((attachment) => (
+            <div key={attachment.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+              <div className="flex items-center">
+                <div className="mr-3">
+                  {getFileIcon(attachment.mimeType)}
+                </div>
+                <div>
+                  <p className="font-medium">{attachment.originalName}</p>
+                  <div className="flex text-xs text-gray-500 mt-1">
+                    <span className="mr-3">{formatFileSize(attachment.size)}</span>
+                    <span>Subido el {formatDate(attachment.createdAt)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <button 
-                  onClick={() => {
-                    try {
-                      // Construir la URL con el puerto correcto (3005 para la API)
-                      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005';
-                      
-                      // Usar la API de descarga para archivos reales
-                      if (attachment.id) {
-                        const downloadUrl = `${API_BASE_URL}/api/attachments/${attachment.id}/download`;
-                        console.log(`Intentando descargar archivo: ${attachment.originalName} (ID: ${attachment.id})`);
-                        console.log(`URL de descarga: ${downloadUrl}`);
-                        
-                        // Verificar si el archivo existe antes de abrir una nueva pestaña
-                        fetch(downloadUrl, { method: 'HEAD' })
-                          .then(response => {
-                            if (response.ok) {
-                              window.open(downloadUrl, '_blank');
-                            } else {
-                              console.error(`Error al verificar el archivo: ${response.status} ${response.statusText}`);
-                              alert(`No se pudo descargar el archivo "${attachment.originalName}". Por favor, inténtelo de nuevo más tarde.`);
-                            }
-                          })
-                          .catch(error => {
-                            console.error('Error al verificar el archivo:', error);
-                            alert(`Error al descargar el archivo. Por favor, inténtelo de nuevo más tarde.`);
-                          });
-                      } else {
-                        // Fallback para archivos simulados (solo en desarrollo)
-                        window.open(attachment.path, '_blank');
-                      }
-                    } catch (error) {
-                      console.error('Error al iniciar la descarga:', error);
-                      alert('Ocurrió un error al intentar descargar el archivo.');
-                    }
-                  }}
-                  className="font-medium text-blue-600 hover:underline block truncate text-left"
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleDownload(attachment)}
+                  className="p-1 text-blue-600 hover:text-blue-800"
+                  title="Descargar"
                 >
-                  {attachment.originalName}
+                  <Download size={18} />
                 </button>
-                <p className="text-sm text-gray-500">
-                  {(attachment.size / 1024).toFixed(2)} KB
-                </p>
+                <button
+                  onClick={() => handleDelete(attachment.id)}
+                  className="p-1 text-red-600 hover:text-red-800"
+                  title="Eliminar"
+                >
+                  <Trash size={18} />
+                </button>
               </div>
-              <button
-                onClick={() => handleDeleteAttachment(attachment.id)}
-                className="text-gray-400 hover:text-red-500 ml-2"
-              >
-                <Trash2 size={16} />
-              </button>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 text-gray-500">
-          <p>No hay documentos adjuntos</p>
-          <p className="text-sm mt-2">Haz clic en "Subir archivos" para añadir documentos al proyecto</p>
+        <div className="text-center py-10 border rounded bg-gray-50">
+          {searchTerm ? (
+            <p className="text-gray-500">No se encontraron archivos que coincidan con "{searchTerm}"</p>
+          ) : (
+            <>
+              <FileText size={40} className="mx-auto text-gray-400 mb-3" />
+              <p className="text-gray-500">No hay archivos adjuntos en este proyecto</p>
+              <p className="text-sm text-gray-400 mt-2">Haz clic en "Subir Archivo" para añadir documentos</p>
+            </>
+          )}
         </div>
       )}
     </div>

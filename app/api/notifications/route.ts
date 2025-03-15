@@ -9,9 +9,27 @@ export async function POST(request: Request) {
     const notificationData = await request.json();
     
     // Validar datos requeridos
-    if (!notificationData.type || !notificationData.content || !notificationData.to_id) {
+    if (!notificationData.type || !notificationData.content) {
       return NextResponse.json(
-        { error: 'Faltan datos requeridos (tipo, contenido o destinatario)' },
+        { error: 'Faltan datos requeridos (tipo o contenido)' },
+        { status: 400 }
+      );
+    }
+    
+    // Verificar si tenemos toId o to_id
+    if (!notificationData.to_id && notificationData.toId) {
+      notificationData.to_id = notificationData.toId;
+    }
+    
+    // Verificar si tenemos fromId o from_id
+    if (!notificationData.from_id && notificationData.fromId) {
+      notificationData.from_id = notificationData.fromId;
+    }
+    
+    // Validar que tengamos un destinatario
+    if (!notificationData.to_id) {
+      return NextResponse.json(
+        { error: 'Falta el destinatario de la notificación' },
         { status: 400 }
       );
     }

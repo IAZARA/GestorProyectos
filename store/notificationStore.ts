@@ -11,9 +11,9 @@ export interface Notification {
   content: string;
   fromId: string;
   toId: string;
-  read: boolean;
+  isRead: boolean;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
 }
 
 interface NotificationCache {
@@ -66,11 +66,11 @@ const snakeToCamel = (notification: any): Notification => {
     id: notification.id,
     type: notification.type,
     content: notification.content,
-    fromId: notification.from_id,
-    toId: notification.to_id,
-    read: notification.read,
-    createdAt: new Date(notification.created_at),
-    updatedAt: new Date(notification.updated_at)
+    fromId: notification.from_id || notification.fromId,
+    toId: notification.to_id || notification.toId,
+    isRead: notification.is_read || notification.isRead || notification.read || false,
+    createdAt: new Date(notification.created_at || notification.createdAt),
+    updatedAt: notification.updated_at || notification.updatedAt ? new Date(notification.updated_at || notification.updatedAt) : undefined
   };
 };
 
@@ -82,7 +82,7 @@ const camelToSnake = (notification: any) => {
     content: notification.content,
     from_id: notification.fromId,
     to_id: notification.toId,
-    read: notification.read,
+    is_read: notification.isRead,
     created_at: notification.createdAt,
     updated_at: notification.updatedAt
   };
@@ -108,7 +108,7 @@ export const useNotificationStore = create<NotificationState>()(
           // Corregir IDs de usuario
           fromId: correctUserId(notification.fromId),
           toId: correctUserId(notification.toId),
-          read: false,
+          isRead: false,
           createdAt: now,
           updatedAt: now
         };
@@ -156,7 +156,7 @@ export const useNotificationStore = create<NotificationState>()(
         set((state) => ({
           notifications: state.notifications.map((notification) =>
             notification.id === id
-              ? { ...notification, read: true, updatedAt: new Date() }
+              ? { ...notification, isRead: true, updatedAt: new Date() }
               : notification
           )
         }));
@@ -190,7 +190,7 @@ export const useNotificationStore = create<NotificationState>()(
         set((state) => ({
           notifications: state.notifications.map((notification) =>
             notification.toId === correctedUserId
-              ? { ...notification, read: true, updatedAt: new Date() }
+              ? { ...notification, isRead: true, updatedAt: new Date() }
               : notification
           )
         }));
@@ -252,7 +252,7 @@ export const useNotificationStore = create<NotificationState>()(
       getUnreadNotificationsForUser: (userId: string) => {
         const correctedUserId = correctUserId(userId);
         return get().notifications.filter(
-          (notification) => notification.toId === correctedUserId && !notification.read
+          (notification) => notification.toId === correctedUserId && !notification.isRead
         );
       },
       
@@ -260,7 +260,7 @@ export const useNotificationStore = create<NotificationState>()(
       getUnreadCountForUser: (userId: string) => {
         const correctedUserId = correctUserId(userId);
         return get().notifications.filter(
-          (notification) => notification.toId === correctedUserId && !notification.read
+          (notification) => notification.toId === correctedUserId && !notification.isRead
         ).length;
       },
       

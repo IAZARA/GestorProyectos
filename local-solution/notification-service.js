@@ -50,10 +50,17 @@ class NotificationService {
       });
       
       // Manejar marcado de notificación como leída
-      socket.on('mark-notification-read', async (notificationId) => {
+      socket.on('notification:markAsRead', async (data) => {
         try {
+          const notificationId = data.notificationId;
+          if (!notificationId) {
+            socket.emit('error', { message: 'ID de notificación no proporcionado' });
+            return;
+          }
+          
+          console.log(`Marcando notificación como leída: ${notificationId}`);
           await this.markNotificationAsRead(notificationId);
-          socket.emit('notification-marked-read', notificationId);
+          socket.emit('notification:marked', notificationId);
         } catch (error) {
           console.error('Error al marcar notificación como leída:', error);
           socket.emit('error', { message: 'Error al marcar notificación como leída' });
@@ -61,10 +68,11 @@ class NotificationService {
       });
       
       // Manejar solicitud de notificaciones
-      socket.on('get-notifications', async () => {
+      socket.on('get:unreadNotifications', async () => {
         try {
+          console.log(`Solicitud de notificaciones no leídas de usuario: ${userId}`);
           const notifications = await this.getUserNotifications(userId);
-          socket.emit('notifications', notifications);
+          socket.emit('notifications:unread', notifications);
         } catch (error) {
           console.error('Error al obtener notificaciones:', error);
           socket.emit('error', { message: 'Error al obtener notificaciones' });
@@ -76,26 +84,34 @@ class NotificationService {
   // Middleware para autenticar conexiones de socket
   async authenticateSocket(socket, next) {
     try {
-      const token = socket.handshake.auth.token || socket.handshake.query.token;
+      // Obtener el userId del objeto auth (enviado desde el cliente)
+      const userId = socket.handshake.auth.userId;
       
-      if (!token) {
+      // Verificar si se proporcionó un userId
+      if (!userId) {
+        console.log('Conexión rechazada: No se proporcionó userId');
         return next(new Error('Autenticación requerida'));
       }
       
-      // Verificar token
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
       // Verificar si el usuario existe
       const user = await prisma.user.findUnique({
-        where: { id: decoded.id }
+        where: { id: userId }
       });
       
       if (!user) {
+        console.log(`Conexión rechazada: Usuario no encontrado: ${userId}`);
         return next(new Error('Usuario no encontrado'));
       }
       
-      // Adjuntar usuario al socket
-      socket.user = decoded;
+      // Adjuntar información del usuario al socket
+      socket.user = {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role
+      };
+      
+      console.log(`Usuario autenticado: ${user.firstName} ${user.lastName} (${userId})`);
       next();
     } catch (error) {
       console.error('Error de autenticación de socket:', error);
@@ -121,8 +137,18 @@ class NotificationService {
   async getUserNotifications(userId) {
     try {
       const notifications = await prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
+        where: { toId: userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          from: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              photoUrl: true
+            }
+          }
+        }
       });
       
       return notifications;
@@ -135,25 +161,33 @@ class NotificationService {
   // Crear una nueva notificación
   async createNotification(data) {
     try {
-      const { userId, title, message, type, relatedId } = data;
+      const { toId, fromId, content, type } = data;
       
       // Crear la notificación en la base de datos
       const notification = await prisma.notification.create({
         data: {
-          userId,
-          title,
-          message,
           type,
-          relatedId,
-          read: false,
-          createdAt: new Date()
+          content,
+          isRead: false,
+          from: { connect: { id: fromId } },
+          to: { connect: { id: toId } }
+        },
+        include: {
+          from: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              photoUrl: true
+            }
+          }
         }
       });
       
-      console.log(`Notificación creada para el usuario ${userId}: ${title}`);
+      console.log(`Notificación creada para el usuario ${toId}: ${content}`);
       
       // Enviar la notificación al usuario si está conectado
-      const socketId = this.connectedUsers.get(userId);
+      const socketId = this.connectedUsers.get(toId);
       if (socketId) {
         this.io.to(socketId).emit('new-notification', notification);
       }
@@ -170,7 +204,7 @@ class NotificationService {
     try {
       const notification = await prisma.notification.update({
         where: { id: notificationId },
-        data: { read: true }
+        data: { isRead: true }
       });
       
       console.log(`Notificación ${notificationId} marcada como leída`);
@@ -194,7 +228,7 @@ class NotificationService {
       for (const user of users) {
         const notification = await this.createNotification({
           ...data,
-          userId: user.id
+          toId: user.id
         });
         notifications.push(notification);
       }
@@ -218,7 +252,7 @@ class NotificationService {
       for (const user of users) {
         const notification = await this.createNotification({
           ...data,
-          userId: user.id
+          toId: user.id
         });
         notifications.push(notification);
       }
@@ -242,7 +276,7 @@ class NotificationService {
           createdAt: {
             lt: date
           },
-          read: true
+          isRead: true
         }
       });
       

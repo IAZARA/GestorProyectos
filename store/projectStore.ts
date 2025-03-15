@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendNotification } from '../lib/socket';
 import { useUserStore } from './userStore';
 import { getProjects as apiGetProjects, deleteProject as apiDeleteProject, createProject as apiCreateProject, updateProject as apiUpdateProject, addProjectMembers as apiAddProjectMembers, removeProjectMembers as apiRemoveProjectMembers } from '../lib/api';
+import { enhancedStorage } from '../lib/localStorage';
 
 interface ProjectState {
   projects: Project[];
@@ -87,6 +88,13 @@ const initialProjects: Project[] = [
   }
 ];
 
+// Función auxiliar para sincronizar explícitamente el store
+export const syncProjectStore = () => {
+  const { projects } = useProjectStore.getState();
+  useProjectStore.setState({ projects: [...projects] });
+  console.log("Store sincronizado globalmente - Proyectos guardados:", projects.length);
+};
+
 export const useProjectStore = create<ProjectState>()(
   persist(
     (set, get) => ({
@@ -152,7 +160,33 @@ export const useProjectStore = create<ProjectState>()(
           
           if (!updatedProjectFromServer) {
             console.error('No se pudo actualizar el proyecto en el servidor');
-            return null;
+            
+            // Modo offline: Actualizar localmente si la API falló
+            console.log('Actualizando proyecto localmente (modo offline)');
+            
+            // Crear una versión actualizada del proyecto
+            const originalProject = projects[projectIndex];
+            const updatedProject = {
+              ...originalProject,
+              ...projectData,
+              updatedAt: new Date()
+            };
+            
+            // Actualizar el estado
+            const updatedProjects = [...projects];
+            updatedProjects[projectIndex] = updatedProject;
+            
+            set({
+              projects: updatedProjects,
+              currentProject: get().currentProject?.id === id ? updatedProject : get().currentProject
+            });
+            
+            // Forzar una sincronización para que persista
+            setTimeout(() => {
+              syncProjectStore();
+            }, 100);
+            
+            return updatedProject;
           }
           
           console.log('Proyecto actualizado en el servidor:', updatedProjectFromServer);
@@ -165,6 +199,17 @@ export const useProjectStore = create<ProjectState>()(
             projects: updatedProjects,
             currentProject: get().currentProject?.id === id ? updatedProjectFromServer : get().currentProject
           });
+          
+          // Forzar una actualización cuando se modifican miembros
+          if (projectData.members && get().currentProject?.id === id) {
+            // Actualizar el estado para forzar que los componentes se refresquen
+            set(state => ({...state}));
+          }
+          
+          // Forzar una sincronización para que persista
+          setTimeout(() => {
+            syncProjectStore();
+          }, 100);
           
           // Notificar a los miembros del proyecto sobre la actualización
           const currentUser = useUserStore.getState().currentUser;
@@ -232,28 +277,57 @@ export const useProjectStore = create<ProjectState>()(
           
           if (projectIndex === -1) return null;
           
-          console.log('Agregando miembros al proyecto en el servidor:', projectId, memberIds);
+          console.log('Agregando miembros al proyecto:', projectId, memberIds);
           
-          // Agregar miembros al proyecto en el servidor
-          const updatedProjectFromServer = await apiAddProjectMembers(projectId, memberIds);
-          
-          if (!updatedProjectFromServer) {
-            console.error('No se pudo agregar miembros al proyecto en el servidor');
-            return null;
+          try {
+            // Intento 1: Agregar miembros al proyecto en el servidor
+            const updatedProjectFromServer = await apiAddProjectMembers(projectId, memberIds);
+            
+            if (updatedProjectFromServer) {
+              console.log('Miembros agregados al proyecto en el servidor:', updatedProjectFromServer);
+              
+              // Actualizar el estado local con los datos del servidor
+              const updatedProjects = [...projects];
+              updatedProjects[projectIndex] = updatedProjectFromServer;
+              
+              set({
+                projects: updatedProjects,
+                currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+              });
+              
+              return updatedProjectFromServer;
+            }
+          } catch (apiError) {
+            console.error('Error al agregar miembros mediante API:', apiError);
           }
           
-          console.log('Miembros agregados al proyecto en el servidor:', updatedProjectFromServer);
+          // Modo offline: Actualizar localmente si la API falló
+          console.log('Actualizando miembros localmente (modo offline)');
           
-          // Actualizar el estado local con los datos del servidor
+          // Obtener el proyecto actual
+          const currentProject = {...projects[projectIndex]};
+          
+          // Añadir los miembros (evitando duplicados)
+          const currentMembers = Array.isArray(currentProject.members) ? currentProject.members : [];
+          const uniqueMembers = new Set([...currentMembers]);
+          memberIds.forEach(id => uniqueMembers.add(id));
+          
+          const updatedProject = {
+            ...currentProject,
+            members: Array.from(uniqueMembers),
+            updatedAt: new Date()
+          };
+          
+          // Actualizar el estado
           const updatedProjects = [...projects];
-          updatedProjects[projectIndex] = updatedProjectFromServer;
+          updatedProjects[projectIndex] = updatedProject;
           
           set({
             projects: updatedProjects,
-            currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+            currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
           });
           
-          return updatedProjectFromServer;
+          return updatedProject;
         } catch (error) {
           console.error('Error al agregar miembros al proyecto:', error);
           return null;
@@ -267,28 +341,56 @@ export const useProjectStore = create<ProjectState>()(
           
           if (projectIndex === -1) return null;
           
-          console.log('Eliminando miembros del proyecto en el servidor:', projectId, memberIds);
+          console.log('Eliminando miembros del proyecto:', projectId, memberIds);
           
-          // Eliminar miembros del proyecto en el servidor
-          const updatedProjectFromServer = await apiRemoveProjectMembers(projectId, memberIds);
-          
-          if (!updatedProjectFromServer) {
-            console.error('No se pudo eliminar miembros del proyecto en el servidor');
-            return null;
+          try {
+            // Intento 1: Eliminar miembros del proyecto en el servidor
+            const updatedProjectFromServer = await apiRemoveProjectMembers(projectId, memberIds);
+            
+            if (updatedProjectFromServer) {
+              console.log('Miembros eliminados del proyecto en el servidor:', updatedProjectFromServer);
+              
+              // Actualizar el estado local con los datos del servidor
+              const updatedProjects = [...projects];
+              updatedProjects[projectIndex] = updatedProjectFromServer;
+              
+              set({
+                projects: updatedProjects,
+                currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+              });
+              
+              return updatedProjectFromServer;
+            }
+          } catch (apiError) {
+            console.error('Error al eliminar miembros mediante API:', apiError);
           }
           
-          console.log('Miembros eliminados del proyecto en el servidor:', updatedProjectFromServer);
+          // Modo offline: Actualizar localmente si la API falló
+          console.log('Eliminando miembros localmente (modo offline)');
           
-          // Actualizar el estado local con los datos del servidor
+          // Obtener el proyecto actual
+          const currentProject = {...projects[projectIndex]};
+          
+          // Filtrar los miembros a eliminar
+          const currentMembers = Array.isArray(currentProject.members) ? currentProject.members : [];
+          const filteredMembers = currentMembers.filter(id => !memberIds.includes(id));
+          
+          const updatedProject = {
+            ...currentProject,
+            members: filteredMembers,
+            updatedAt: new Date()
+          };
+          
+          // Actualizar el estado
           const updatedProjects = [...projects];
-          updatedProjects[projectIndex] = updatedProjectFromServer;
+          updatedProjects[projectIndex] = updatedProject;
           
           set({
             projects: updatedProjects,
-            currentProject: get().currentProject?.id === projectId ? updatedProjectFromServer : get().currentProject
+            currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
           });
           
-          return updatedProjectFromServer;
+          return updatedProject;
         } catch (error) {
           console.error('Error al eliminar miembros del proyecto:', error);
           return null;
@@ -296,101 +398,157 @@ export const useProjectStore = create<ProjectState>()(
       },
       
       addTask: (projectId, task) => {
-        const { projects } = get();
-        const projectIndex = projects.findIndex(project => project.id === projectId);
-        
-        if (projectIndex === -1) return;
-        
-        const now = new Date();
-        const newTask: Task = {
-          ...task,
-          id: uuidv4(),
-          createdAt: now,
-          updatedAt: now
-        };
-        
-        const updatedProject = {
-          ...projects[projectIndex],
-          tasks: [...projects[projectIndex].tasks, newTask],
-          updatedAt: now
-        };
-        
-        const updatedProjects = [...projects];
-        updatedProjects[projectIndex] = updatedProject;
-        
-        set({ 
-          projects: updatedProjects,
-          currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
-        });
-        
-        // Enviar notificación si la tarea está asignada a alguien
-        if (newTask.assignedTo && newTask.createdBy) {
-          const currentUser = useUserStore.getState().currentUser;
-          if (currentUser) {
-            const project = projects[projectIndex];
-            sendNotification({
-              type: 'task_assigned',
-              content: `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
-              fromUserId: currentUser.id,
-              toUserId: newTask.assignedTo
-            });
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === projectId);
+          
+          if (projectIndex === -1) {
+            console.error(`Proyecto no encontrado: ${projectId}`);
+            return;
           }
+          
+          console.log(`Agregando tarea al proyecto ${projectId}:`, task);
+          
+          const now = new Date();
+          const newTask: Task = {
+            ...task,
+            id: uuidv4(),
+            createdAt: now,
+            updatedAt: now
+          };
+          
+          // Aseguramos que tasks exista antes de trabajar con él
+          const currentTasks = Array.isArray(projects[projectIndex].tasks) 
+            ? projects[projectIndex].tasks 
+            : [];
+          
+          const updatedProject = {
+            ...projects[projectIndex],
+            tasks: [...currentTasks, newTask],
+            updatedAt: now
+          };
+          
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProject;
+          
+          set({ 
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
+          });
+          
+          console.log(`Tarea agregada exitosamente con ID: ${newTask.id}`);
+          
+          // Enviar notificación si la tarea está asignada a alguien
+          if (newTask.assignedTo && newTask.createdBy) {
+            const currentUser = useUserStore.getState().currentUser;
+            if (currentUser) {
+              const project = projects[projectIndex];
+              sendNotification({
+                type: 'task_assigned',
+                content: `Se te ha asignado una nueva tarea: "${newTask.title}" en el proyecto "${project.name}"`,
+                fromUserId: currentUser.id,
+                toUserId: newTask.assignedTo
+              });
+            }
+          }
+          
+          return newTask;
+        } catch (error) {
+          console.error('Error al agregar tarea:', error);
         }
       },
       
       updateTask: (projectId, taskId, taskData) => {
-        const { projects } = get();
-        const projectIndex = projects.findIndex(project => project.id === projectId);
-        
-        if (projectIndex === -1) return;
-        
-        const taskIndex = projects[projectIndex].tasks.findIndex(task => task.id === taskId);
-        
-        if (taskIndex === -1) return;
-        
-        const updatedTask = {
-          ...projects[projectIndex].tasks[taskIndex],
-          ...taskData,
-          updatedAt: new Date()
-        };
-        
-        const updatedTasks = [...projects[projectIndex].tasks];
-        updatedTasks[taskIndex] = updatedTask;
-        
-        const updatedProject = {
-          ...projects[projectIndex],
-          tasks: updatedTasks,
-          updatedAt: new Date()
-        };
-        
-        const updatedProjects = [...projects];
-        updatedProjects[projectIndex] = updatedProject;
-        
-        set({ 
-          projects: updatedProjects,
-          currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
-        });
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === projectId);
+          
+          if (projectIndex === -1) {
+            console.error(`Proyecto no encontrado: ${projectId}`);
+            return;
+          }
+          
+          console.log(`Actualizando tarea ${taskId} del proyecto ${projectId}:`, taskData);
+          
+          // Aseguramos que tasks exista antes de trabajar con él
+          const currentTasks = Array.isArray(projects[projectIndex].tasks) 
+            ? projects[projectIndex].tasks 
+            : [];
+          
+          const taskIndex = currentTasks.findIndex(task => task.id === taskId);
+          
+          if (taskIndex === -1) {
+            console.error(`Tarea no encontrada: ${taskId}`);
+            return;
+          }
+          
+          const updatedTask = {
+            ...currentTasks[taskIndex],
+            ...taskData,
+            updatedAt: new Date()
+          };
+          
+          const updatedTasks = [...currentTasks];
+          updatedTasks[taskIndex] = updatedTask;
+          
+          const updatedProject = {
+            ...projects[projectIndex],
+            tasks: updatedTasks,
+            updatedAt: new Date()
+          };
+          
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProject;
+          
+          set({ 
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
+          });
+          
+          console.log(`Tarea ${taskId} actualizada exitosamente`);
+          return updatedTask;
+        } catch (error) {
+          console.error('Error al actualizar tarea:', error);
+        }
       },
       
       deleteTask: (projectId, taskId) => {
-        const { projects } = get();
-        const projectIndex = projects.findIndex(project => project.id === projectId);
-        
-        if (projectIndex === -1) return;
-        
-        const updatedProject = {
-          ...projects[projectIndex],
-          tasks: projects[projectIndex].tasks.filter(task => task.id !== taskId),
-          updatedAt: new Date()
-        };
-        
-        const updatedProjects = [...projects];
-        updatedProjects[projectIndex] = updatedProject;
-        
-        set({ 
-          projects: updatedProjects,
-          currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
-        });
+        try {
+          const { projects } = get();
+          const projectIndex = projects.findIndex(project => project.id === projectId);
+          
+          if (projectIndex === -1) {
+            console.error(`Proyecto no encontrado: ${projectId}`);
+            return;
+          }
+          
+          console.log(`Eliminando tarea ${taskId} del proyecto ${projectId}`);
+          
+          // Aseguramos que tasks exista antes de trabajar con él
+          const currentTasks = Array.isArray(projects[projectIndex].tasks) 
+            ? projects[projectIndex].tasks 
+            : [];
+          
+          const updatedProject = {
+            ...projects[projectIndex],
+            tasks: currentTasks.filter(task => task.id !== taskId),
+            updatedAt: new Date()
+          };
+          
+          const updatedProjects = [...projects];
+          updatedProjects[projectIndex] = updatedProject;
+          
+          set({ 
+            projects: updatedProjects,
+            currentProject: get().currentProject?.id === projectId ? updatedProject : get().currentProject
+          });
+          
+          console.log(`Tarea ${taskId} eliminada exitosamente`);
+          return true;
+        } catch (error) {
+          console.error('Error al eliminar tarea:', error);
+          return false;
+        }
       },
       
       addComment: (projectId, comment) => {
@@ -508,7 +666,21 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'project-storage',
-      partialize: (state) => ({ projects: state.projects })
+      partialize: (state) => ({ 
+        projects: state.projects,
+        currentProject: state.currentProject 
+      }),
+      // Agregar sincronización para garantizar persistencia
+      onRehydrateStorage: () => (state) => {
+        console.log('Store rehydrated with', state?.projects?.length || 0, 'projects');
+        // Intentar forzar una sincronización después de rehidratar
+        setTimeout(() => {
+          syncProjectStore();
+          console.log('Forzando sincronización post-rehidratación');
+        }, 500);
+      },
+      // Usar el storage mejorado
+      storage: enhancedStorage
     }
   )
 ); 
